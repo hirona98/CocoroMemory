@@ -1,7 +1,8 @@
 import os
+
+from chatmemory import ChatMemory
 from dotenv import load_dotenv
 from fastapi import FastAPI
-from chatmemory import ChatMemory
 
 # .envファイルから環境変数を読み込む
 load_dotenv()
@@ -13,14 +14,19 @@ if api_key is None:
 
 cm = ChatMemory(
     openai_api_key=api_key,
-    llm_model="gpt-4o",
+    llm_model="gpt-4o-mini",
     # Your PostgreSQL configurations
     db_name="postgres",
     db_user="postgres",
     db_password="postgres",
     db_host="127.0.0.1",
-    db_port=5432,
+    db_port=5433,
 )
 
 app = FastAPI()
 app.include_router(cm.get_router())
+
+# スクリプトが直接実行された場合、uvicornを起動
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
