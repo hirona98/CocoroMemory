@@ -1,8 +1,12 @@
+import atexit
 import os
+import sys
 
 from chatmemory import ChatMemory
 from dotenv import load_dotenv
 from fastapi import FastAPI
+
+from postgres_manager import PostgresManager
 
 # .envファイルから環境変数を読み込む
 load_dotenv()
@@ -11,6 +15,13 @@ load_dotenv()
 api_key = os.getenv("OPENAI_API_KEY")
 if api_key is None:
     raise ValueError("OPENAI_API_KEY environment variable is not set")
+
+# PostgreSQLサーバーを起動
+pg_manager = PostgresManager()
+pg_manager.start_server()
+
+# アプリケーション終了時にPostgreSQLサーバーを停止するよう登録
+atexit.register(pg_manager.stop_server)
 
 cm = ChatMemory(
     openai_api_key=api_key,
