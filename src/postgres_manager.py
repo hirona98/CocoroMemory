@@ -22,8 +22,14 @@ class PostgresManager:
         # PostgreSQLの各種ディレクトリとコマンドのパスを設定
         self.pgsql_dir = os.path.join(self.base_dir, "pgsql")
         self.data_dir = os.path.join(self.base_dir, "Data")
-        self.bin_dir = os.path.join(self.pgsql_dir, "bin")
         self.log_dir = os.path.join(self.base_dir, "Logs")
+        
+        # bin_dir の探索: _internal/pgsql/bin 優先
+        bin_dir_candidate = os.path.join(self.base_dir, "_internal", "pgsql", "bin")
+        if os.path.exists(bin_dir_candidate):
+            self.bin_dir = bin_dir_candidate
+        else:
+            self.bin_dir = os.path.join(self.pgsql_dir, "bin")
         
         # 各種コマンドへのパス
         self.postgres_exe = os.path.join(self.bin_dir, "postgres.exe")
