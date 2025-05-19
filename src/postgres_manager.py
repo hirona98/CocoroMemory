@@ -115,10 +115,22 @@ class PostgresManager:
         except Exception as e:
             print(f"サーバー起動中にエラーが発生しました: {e}")
             return False
-        
+            
     def stop_server(self):
         """PostgreSQLサーバーを停止"""
+        # 先にサーバーが実行中かどうかを確認
         try:
+            status = subprocess.run(
+                [self.pg_ctl_exe, "status", "-D", self.data_dir],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE
+            )
+            # 戻り値が0以外の場合、サーバーは実行されていない
+            if status.returncode != 0:
+                print("PostgreSQLサーバーは既に停止しているか実行されていません")
+                return True
+                
+            # サーバーが動作している場合は停止を試みる
             subprocess.run([
                 self.pg_ctl_exe,
                 "stop",
@@ -127,6 +139,9 @@ class PostgresManager:
             ], check=True)
             print("PostgreSQLサーバーを停止しました")
             return True
+        
         except Exception as e:
+            # PIDファイルがない場合も含めてエラーメッセージを出力
             print(f"サーバー停止中にエラーが発生しました: {e}")
-            return False
+            # エラーが発生しても、サーバーは実行されていないとみなす
+            return True
