@@ -1,4 +1,3 @@
-import atexit
 import os
 import subprocess
 import sys
@@ -32,17 +31,24 @@ class PostgresInitializer:
 
         if not self.is_initialized():
             print("PostgreSQLデータディレクトリを初期化しています...")
-            subprocess.run([
-                self.initdb_exe, 
-                "-D", self.data_dir,
-                "-U", Config.POSTGRES_USER,
-                "--encoding=UTF8",
-                "--locale=C"
-            ], check=True)
+            subprocess.run(
+                [
+                    self.initdb_exe,
+                    "-D",
+                    self.data_dir,
+                    "-U",
+                    Config.POSTGRES_USER,
+                    "--encoding=UTF8",
+                    "--locale=C",
+                ],
+                check=True,
+            )
 
             # パスワード設定用のSQLファイルを作成
             with open(os.path.join(self.base_dir, "set_password.sql"), "w") as f:
-                f.write(f"ALTER USER {Config.POSTGRES_USER} WITH PASSWORD '{Config.POSTGRES_PASSWORD}';")
+                f.write(
+                    f"ALTER USER {Config.POSTGRES_USER} WITH PASSWORD '{Config.POSTGRES_PASSWORD}';"
+                )
 
             print("PostgreSQL データディレクトリが初期化されました")
         else:
@@ -61,26 +67,37 @@ class PostgresServerManager:
         """PostgreSQLサーバーを起動"""
         print("PostgreSQLサーバーを起動中...")
         try:
-            subprocess.run([
-                self.pg_ctl_exe,
-                "start",
-                "-D", self.data_dir,
-                "-l", self.log_file,
-                "-o", f'"-p {Config.POSTGRES_PORT}"',
-                "-w"  # 起動完了まで待機
-            ], check=True)
+            subprocess.run(
+                [
+                    self.pg_ctl_exe,
+                    "start",
+                    "-D",
+                    self.data_dir,
+                    "-l",
+                    self.log_file,
+                    "-o",
+                    f'"-p {Config.POSTGRES_PORT}"',
+                    "-w",  # 起動完了まで待機
+                ],
+                check=True,
+            )
 
             # 数秒待機してサーバーが起動するのを待つ
             time.sleep(3)
 
             # パスワードを設定
             if os.path.exists(os.path.join(self.base_dir, "set_password.sql")):
-                subprocess.run([
-                    self.psql_exe,
-                    "-p", Config.POSTGRES_PORT,
-                    "-U", Config.POSTGRES_USER,
-                    "-f", os.path.join(self.base_dir, "set_password.sql")
-                ])
+                subprocess.run(
+                    [
+                        self.psql_exe,
+                        "-p",
+                        Config.POSTGRES_PORT,
+                        "-U",
+                        Config.POSTGRES_USER,
+                        "-f",
+                        os.path.join(self.base_dir, "set_password.sql"),
+                    ]
+                )
                 # SQLファイルを削除
                 os.remove(os.path.join(self.base_dir, "set_password.sql"))
 
@@ -96,18 +113,13 @@ class PostgresServerManager:
             status = subprocess.run(
                 [self.pg_ctl_exe, "status", "-D", self.data_dir],
                 stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE
+                stderr=subprocess.PIPE,
             )
             if status.returncode != 0:
                 print("PostgreSQLサーバーは既に停止しているか実行されていません")
                 return True
 
-            subprocess.run([
-                self.pg_ctl_exe,
-                "stop",
-                "-D", self.data_dir,
-                "-m", "fast"
-            ], check=True)
+            subprocess.run([self.pg_ctl_exe, "stop", "-D", self.data_dir, "-m", "fast"], check=True)
             print("PostgreSQLサーバーを停止しました")
             return True
 
@@ -121,7 +133,7 @@ class PostgresManager:
         """PostgreSQLサーバーを管理するクラス"""
         if base_dir is None:
             # 実行ファイルのディレクトリを取得
-            if getattr(sys, 'frozen', False):
+            if getattr(sys, "frozen", False):
                 # PyInstallerでパッケージングされている場合
                 self.base_dir = os.path.dirname(sys.executable)
             else:
@@ -129,42 +141,46 @@ class PostgresManager:
                 self.base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         else:
             self.base_dir = base_dir
-            
+
         # PostgreSQLの各種ディレクトリとコマンドのパスを設定
         self.pgsql_dir = os.path.join(self.base_dir, "pgsql")
         self.data_dir = os.path.join(self.base_dir, "Data")
         self.log_dir = os.path.join(self.base_dir, "Logs")
-        
+
         # bin_dir の探索: _internal/pgsql/bin 優先
         bin_dir_candidate = os.path.join(self.base_dir, "_internal", "pgsql", "bin")
         if os.path.exists(bin_dir_candidate):
             self.bin_dir = bin_dir_candidate
         else:
             self.bin_dir = os.path.join(self.pgsql_dir, "bin")
-        
+
         # 各種コマンドへのパス
         self.postgres_exe = os.path.join(self.bin_dir, "postgres.exe")
         self.pg_ctl_exe = os.path.join(self.bin_dir, "pg_ctl.exe")
         self.initdb_exe = os.path.join(self.bin_dir, "initdb.exe")
         self.createdb_exe = os.path.join(self.bin_dir, "createdb.exe")
         self.psql_exe = os.path.join(self.bin_dir, "psql.exe")
-        
+
         # ログファイルのパス
         self.log_file = os.path.join(self.log_dir, "postgresql.log")
-        
-        self.initializer = PostgresInitializer(self.base_dir, self.initdb_exe, self.data_dir, self.log_dir)
-        self.server_manager = PostgresServerManager(self.pg_ctl_exe, self.psql_exe, self.data_dir, self.log_file, self.base_dir)
-        
+
+        self.initializer = PostgresInitializer(
+            self.base_dir, self.initdb_exe, self.data_dir, self.log_dir
+        )
+        self.server_manager = PostgresServerManager(
+            self.pg_ctl_exe, self.psql_exe, self.data_dir, self.log_file, self.base_dir
+        )
+
     def initialize_db(self):
         """データベースを初期化"""
         self.initializer.initialize_db()
-            
+
     def start_server(self):
         """PostgreSQLサーバーを起動"""
         if not self.initializer.is_initialized():
             self.initialize_db()
         return self.server_manager.start_server()
-            
+
     def stop_server(self):
         """PostgreSQLサーバーを停止"""
         return self.server_manager.stop_server()
