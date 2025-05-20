@@ -23,13 +23,14 @@ pg_manager.start_server()
 # アプリケーション終了時にPostgreSQLサーバーを停止するよう登録
 atexit.register(pg_manager.stop_server)
 
+# TODO: このあたりの設定はファイル読み込みに修正する
 cm = ChatMemory(
     openai_api_key=api_key,
     llm_model="gpt-4o-mini",
     # Your PostgreSQL configurations
     db_name="postgres",
     db_user="postgres",
-    db_password="postgres",
+    db_password="postgres",  # noqa: S106
     db_host="127.0.0.1",
     db_port=5433,
 )
