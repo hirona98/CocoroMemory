@@ -4,3 +4,4 @@ python-dotenv>=1.0.0
 psycopg2-binary>=2.9.7
 chatmemory>=1.0.0
 pyinstaller>=5.13.0
+litellm>=1.0.0

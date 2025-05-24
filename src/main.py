@@ -3,11 +3,11 @@ import atexit
 import os
 import sys
 
-from chatmemory import ChatMemory
 from dotenv import load_dotenv
 from fastapi import FastAPI
 
 from config_loader import load_config
+from litellm_chatmemory import LiteLLMChatMemory
 from postgres_manager import PostgresManager
 
 # .envファイルから環境変数を読み込む
@@ -58,10 +58,10 @@ def create_app(config_dir=None):
     pg_manager.initialize_db()
     pg_manager.start_server()
 
-    # ChatMemoryインスタンスを作成
-    cm = ChatMemory(
-        openai_api_key=llm_api_key,
+    # LiteLLMChatMemory インスタンスを作成
+    cm = LiteLLMChatMemory(
         llm_model=llm_model,
+        api_key=llm_api_key,
         # PostgreSQL設定
         db_name="postgres",
         db_user="postgres",
