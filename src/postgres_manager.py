@@ -50,9 +50,69 @@ class PostgresInitializer:
                     f"ALTER USER {Config.POSTGRES_USER} WITH PASSWORD '{Config.POSTGRES_PASSWORD}';"
                 )
 
+            # 軽量化設定を適用
+            self._apply_lightweight_config()
+
             print("PostgreSQL データディレクトリが初期化されました")
         else:
             print("PostgreSQL データディレクトリは既に初期化されています")
+
+    def _apply_lightweight_config(self):
+        """軽量化設定をpostgresql.confに適用"""
+        config_file = os.path.join(self.data_dir, "postgresql.conf")
+        
+        # 軽量化設定
+        lightweight_settings = {
+            # メモリ設定
+            "shared_buffers": "32MB",
+            "work_mem": "1MB",
+            "maintenance_work_mem": "16MB",
+            "wal_buffers": "1MB",
+            "effective_cache_size": "256MB",
+            # WAL設定
+            "max_wal_size": "200MB",
+            "min_wal_size": "50MB",
+            "checkpoint_timeout": "15min",
+            "checkpoint_completion_target": "0.5",
+            # 接続設定
+            "max_connections": "10",
+            # ログ設定
+            "logging_collector": "off",
+            "log_min_messages": "error",
+            "log_checkpoints": "off",
+            # 自動バキューム設定
+            "autovacuum_max_workers": "1",
+            "autovacuum_naptime": "5min",
+        }
+        
+        # 設定ファイルを読み込み
+        with open(config_file, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+        
+        # 適用済みの設定を記録
+        applied_settings = set()
+        
+        # 設定を更新
+        for i, line in enumerate(lines):
+            for key, value in lightweight_settings.items():
+                # コメントアウトされた設定を探して上書き
+                if line.strip().startswith(f"#{key}") or line.strip().startswith(f"{key}"):
+                    lines[i] = f"{key} = {value}\n"
+                    applied_settings.add(key)
+                    break
+        
+        # まだ適用されていない設定を末尾に追加
+        remaining_settings = {k: v for k, v in lightweight_settings.items() if k not in applied_settings}
+        if remaining_settings:
+            lines.append("\n# 軽量化設定\n")
+            for key, value in remaining_settings.items():
+                lines.append(f"{key} = {value}\n")
+        
+        # 設定ファイルを書き込み
+        with open(config_file, "w", encoding="utf-8") as f:
+            f.writelines(lines)
+        
+        print("軽量化設定を適用しました")
 
 
 class PostgresServerManager:
