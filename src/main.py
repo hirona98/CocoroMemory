@@ -43,11 +43,17 @@ def create_app(config_dir=None):
             )
         llm_api_key = api_key
         llm_model = "openai/gpt-4o-mini"
+        embedded_api_key = api_key  # デフォルトは同じAPIキー
+        embedded_model = "openai/text-embedding-3-small"
         memory_port = 55602
     else:
         current_char = character_list[current_char_index]
         llm_api_key = current_char.get("apiKey")
         llm_model = current_char.get("llmModel", "openai/gpt-4o-mini")
+        embedded_api_key = current_char.get(
+            "embeddedApiKey", llm_api_key
+        )  # デフォルトはLLMのAPIキー
+        embedded_model = current_char.get("embeddedModel", "openai/text-embedding-3-small")
         memory_port = config.get("cocoroMemoryPort", 55602)
         # APIキーが設定ファイルにない場合はエラー
         if not llm_api_key:
@@ -62,6 +68,8 @@ def create_app(config_dir=None):
     cm = LiteLLMChatMemory(
         llm_model=llm_model,
         api_key=llm_api_key,
+        embedded_api_key=embedded_api_key,
+        embedded_model=embedded_model,
         # PostgreSQL設定
         db_name="postgres",
         db_user="postgres",
