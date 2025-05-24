@@ -5,7 +5,7 @@ import time
 
 
 class Config:
-    POSTGRES_PORT = os.getenv("POSTGRES_PORT", "5433")
+    POSTGRES_PORT = "5433"  # デフォルト値、後で設定から更新される
     POSTGRES_USER = os.getenv("POSTGRES_USER", "postgres")
     POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "postgres")
 
@@ -189,8 +189,13 @@ class PostgresServerManager:
 
 
 class PostgresManager:
-    def __init__(self, base_dir=None):
-        """PostgreSQLサーバーを管理するクラス"""
+    def __init__(self, base_dir=None, port=None):
+        """PostgreSQLサーバーを管理するクラス
+        
+        Args:
+            base_dir: ベースディレクトリ
+            port: PostgreSQLのポート番号
+        """
         if base_dir is None:
             # 実行ファイルのディレクトリを取得
             if getattr(sys, "frozen", False):
@@ -223,6 +228,10 @@ class PostgresManager:
 
         # ログファイルのパス
         self.log_file = os.path.join(self.log_dir, "postgresql.log")
+        
+        # ポート設定の更新
+        if port:
+            Config.POSTGRES_PORT = str(port)
 
         self.initializer = PostgresInitializer(
             self.base_dir, self.initdb_exe, self.data_dir, self.log_dir

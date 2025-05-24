@@ -46,6 +46,7 @@ def create_app(config_dir=None):
         embedded_api_key = api_key  # デフォルトは同じAPIキー
         embedded_model = "openai/text-embedding-3-small"
         memory_port = 55602
+        postgres_port = 5433  # デフォルトのPostgreSQLポート
     else:
         current_char = character_list[current_char_index]
         llm_api_key = current_char.get("apiKey")
@@ -55,12 +56,13 @@ def create_app(config_dir=None):
         )  # デフォルトはLLMのAPIキー
         embedded_model = current_char.get("embeddedModel", "openai/text-embedding-3-small")
         memory_port = config.get("cocoroMemoryPort", 55602)
+        postgres_port = config.get("cocoroMemoryDBPort", 5433)  # PostgreSQLポート設定を追加
         # APIキーが設定ファイルにない場合はエラー
         if not llm_api_key:
             raise ValueError("APIキーが設定ファイルにもOPENAI_API_KEY環境変数にも見つかりません")
 
     # PostgreSQLサーバーを起動
-    pg_manager = PostgresManager()
+    pg_manager = PostgresManager(port=postgres_port)
     pg_manager.initialize_db()
     pg_manager.start_server()
 
@@ -75,7 +77,7 @@ def create_app(config_dir=None):
         db_user="postgres",
         db_password="postgres",  # noqa: S106
         db_host="127.0.0.1",
-        db_port=5433,  # PostgreSQLのポート（ChatMemoryのポートとは別）
+        db_port=postgres_port,  # PostgreSQLのポート（ChatMemoryのポートとは別）
     )
 
     app = FastAPI()
