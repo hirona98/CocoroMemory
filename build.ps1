@@ -26,9 +26,13 @@ if (-not (Test-Path "dist\CocoroMemory\Logs")) {
     New-Item -Path "dist\CocoroMemory\Logs" -ItemType Directory
 }
 
+# VBSスクリプトをコピー
+Copy-Item -Path "Scripts\CocoroMemoryHidden.vbs" -Destination "dist\CocoroMemory\" -Force
+
 # 仮想環境を無効化
 deactivate
 
 Write-Host ""
 Write-Host "ビルドが完了しました！"
 Write-Host "実行ファイルは dist\CocoroMemory フォルダにあります"
+Write-Host "コンソールを非表示で起動するには CocoroMemoryHidden.vbs を使用してください"
