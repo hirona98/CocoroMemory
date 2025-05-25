@@ -3,7 +3,7 @@ CocoroMemory LICENSE AND THIRD-PARTY SOFTWARE NOTICES
 ================================================================================
 
 CocoroMemory
-Copyright (c) 2024 CocoroMemory Contributors
+Copyright (c) CocoroMemory Contributors
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
