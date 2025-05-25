@@ -122,6 +122,7 @@ class PostgresServerManager:
         self.data_dir = data_dir
         self.log_file = log_file
         self.base_dir = base_dir
+        self.postgres_pid = None  # 起動したPostgreSQLのPIDを記録
 
     def start_server(self):
         """PostgreSQLサーバーを起動"""
@@ -144,6 +145,16 @@ class PostgresServerManager:
 
             # 数秒待機してサーバーが起動するのを待つ
             time.sleep(3)
+            
+            # postmaster.pidファイルからPIDを取得
+            try:
+                pid_file = os.path.join(self.data_dir, "postmaster.pid")
+                if os.path.exists(pid_file):
+                    with open(pid_file, 'r') as f:
+                        self.postgres_pid = int(f.readline().strip())
+                        print(f"PostgreSQL プロセスID: {self.postgres_pid}")
+            except Exception as e:
+                print(f"PID取得エラー: {e}")
 
             # パスワードを設定
             if os.path.exists(os.path.join(self.base_dir, "set_password.sql")):
@@ -177,15 +188,80 @@ class PostgresServerManager:
             )
             if status.returncode != 0:
                 print("PostgreSQLサーバーは既に停止しているか実行されていません")
+                # 念のため残存プロセスをチェック
+                self._kill_remaining_postgres_processes()
                 return True
 
-            subprocess.run([self.pg_ctl_exe, "stop", "-D", self.data_dir, "-m", "fast"], check=True)
-            print("PostgreSQLサーバーを停止しました")
+            # まず正常停止を試みる
+            result = subprocess.run(
+                [self.pg_ctl_exe, "stop", "-D", self.data_dir, "-m", "fast"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=10  # 10秒でタイムアウト
+            )
+            
+            if result.returncode == 0:
+                print("PostgreSQLサーバーを正常に停止しました")
+            else:
+                print("正常停止に失敗しました。強制停止を試みます...")
+                subprocess.run(
+                    [self.pg_ctl_exe, "stop", "-D", self.data_dir, "-m", "immediate"],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    timeout=5
+                )
+                
+            # 念のため残存プロセスをチェック
+            self._kill_remaining_postgres_processes()
             return True
 
+        except subprocess.TimeoutExpired:
+            print("PostgreSQLサーバーの停止がタイムアウトしました。プロセスを強制終了します...")
+            self._kill_remaining_postgres_processes()
+            return True
         except Exception as e:
             print(f"サーバー停止中にエラーが発生しました: {e}")
+            self._kill_remaining_postgres_processes()
             return True
+    
+    def _kill_remaining_postgres_processes(self):
+        """残存するPostgreSQLプロセスを強制終了（自分が起動したもののみ）"""
+        if sys.platform == "win32":
+            try:
+                # Windowsでpostgres.exeプロセスを検索して終了
+                import psutil
+                
+                # 自分が起動したプロセスのPIDがある場合
+                if self.postgres_pid:
+                    try:
+                        parent_proc = psutil.Process(self.postgres_pid)
+                        # 親プロセスとその子プロセスを取得
+                        children = parent_proc.children(recursive=True)
+                        children.append(parent_proc)
+                        
+                        for proc in children:
+                            if proc.is_running() and proc.name() == 'postgres.exe':
+                                print(f"PostgreSQLプロセス (PID: {proc.pid}) を終了します")
+                                proc.terminate()
+                                proc.wait(timeout=5)
+                    except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.TimeoutExpired):
+                        pass
+                else:
+                    # PIDが不明な場合は、データディレクトリで判別
+                    for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+                        try:
+                            if proc.info['name'] == 'postgres.exe':
+                                # コマンドラインにデータディレクトリが含まれているか確認
+                                cmdline = ' '.join(proc.info.get('cmdline', []))
+                                if self.data_dir in cmdline:
+                                    print(f"残存PostgreSQLプロセス (PID: {proc.info['pid']}) を終了します")
+                                    proc.terminate()
+                                    proc.wait(timeout=5)
+                        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.TimeoutExpired):
+                            continue
+            except ImportError:
+                # psutilがない場合は、pg_ctlコマンドのみに依存
+                print("psutilが利用できないため、追加のプロセスクリーンアップは実行されません")
 
 
 class PostgresManager:

@@ -3,6 +3,8 @@ import atexit
 import os
 import sys
 import logging
+import signal
+import threading
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
@@ -128,6 +130,23 @@ def main():
 
     # アプリケーション終了時にPostgreSQLサーバーを停止するよう登録
     atexit.register(pg_manager.stop_server)
+    
+    # シャットダウンイベント
+    shutdown_event = threading.Event()
+    
+    def signal_handler(sig, frame):
+        """シグナルハンドラー：Ctrl+CやKillシグナルを受けた時の処理"""
+        logger.info(f"シグナル {sig} を受信しました。シャットダウンを開始します...")
+        shutdown_event.set()
+    
+    # Windowsでのシグナル設定
+    if sys.platform == "win32":
+        signal.signal(signal.SIGINT, signal_handler)
+        signal.signal(signal.SIGTERM, signal_handler)
+        signal.signal(signal.SIGBREAK, signal_handler)  # Windows固有のCTRL+BREAKシグナル
+    else:
+        signal.signal(signal.SIGINT, signal_handler)
+        signal.signal(signal.SIGTERM, signal_handler)
 
     # 設定情報のログ出力
     logger.info("CocoroMemory を起動します")
@@ -138,17 +157,36 @@ def main():
     # サーバー起動
     try:
         import uvicorn
-
-        # コンソールなしモードでの特別な設定
-        if getattr(sys, "frozen", False) and not sys.stdout:
-            # Windows GUIモードの場合、uvicornのロギングを無効化
-            uvicorn_log_config = uvicorn.config.LOGGING_CONFIG
-            uvicorn_log_config["handlers"]["default"]["class"] = "logging.NullHandler"
-            uvicorn_log_config["handlers"]["access"]["class"] = "logging.NullHandler"
+        from uvicorn import Server, Config
+        
+        # Uvicornサーバーのカスタム設定
+        def run_server():
+            config = Config(app=app, host="127.0.0.1", port=port)
             
-            uvicorn.run(app, host="127.0.0.1", port=port, log_config=uvicorn_log_config)
-        else:
-            uvicorn.run(app, host="127.0.0.1", port=port)
+            # コンソールなしモードでの特別な設定
+            if getattr(sys, "frozen", False) and not sys.stdout:
+                # Windows GUIモードの場合、uvicornのロギングを無効化
+                uvicorn_log_config = uvicorn.config.LOGGING_CONFIG
+                uvicorn_log_config["handlers"]["default"]["class"] = "logging.NullHandler"
+                uvicorn_log_config["handlers"]["access"]["class"] = "logging.NullHandler"
+                config.log_config = uvicorn_log_config
+            
+            server = Server(config)
+            
+            # シャットダウンイベントを監視するスレッド
+            def monitor_shutdown():
+                shutdown_event.wait()
+                logger.info("シャットダウンイベントを検出しました")
+                server.should_exit = True
+            
+            monitor_thread = threading.Thread(target=monitor_shutdown, daemon=True)
+            monitor_thread.start()
+            
+            # サーバーを実行
+            server.run()
+        
+        run_server()
+        
     except Exception as e:
         logger.error(f"サーバー起動エラー: {e}", exc_info=True)
         # EXE実行時などのエラー処理
@@ -159,6 +197,10 @@ def main():
             time.sleep(5)
         elif not getattr(sys, "frozen", False):
             input("Enterキーを押すと終了します...")
+    finally:
+        # 明示的にPostgreSQLを停止
+        logger.info("PostgreSQLサーバーを停止しています...")
+        pg_manager.stop_server()
 
 
 # スクリプトが直接実行された場合
