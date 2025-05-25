@@ -2,6 +2,9 @@ import argparse
 import atexit
 import os
 import sys
+import logging
+from logging.handlers import RotatingFileHandler
+from pathlib import Path
 
 from dotenv import load_dotenv
 from fastapi import FastAPI
@@ -12,6 +15,28 @@ from postgres_manager import PostgresManager
 
 # .envファイルから環境変数を読み込む
 load_dotenv()
+
+# ログディレクトリの設定
+if getattr(sys, 'frozen', False):
+    # PyInstallerでパッケージ化されている場合
+    log_dir = Path(sys._MEIPASS).parent / "Logs"
+else:
+    # 開発環境の場合
+    log_dir = Path(__file__).parent.parent / "Logs"
+
+log_dir.mkdir(exist_ok=True)
+
+# ロギングの設定
+log_file = log_dir / "cocoro_memory.log"
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        RotatingFileHandler(log_file, maxBytes=10*1024*1024, backupCount=5),
+        logging.StreamHandler(sys.stdout) if not getattr(sys, 'frozen', False) or sys.stdout else logging.NullHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
 
 
 def create_app(config_dir=None):
@@ -105,28 +130,34 @@ def main():
     atexit.register(pg_manager.stop_server)
 
     # 設定情報のログ出力
-    print("CocoroMemory を起動します")
+    logger.info("CocoroMemory を起動します")
     config_dir = "(デフォルト)" if not args.config_dir else args.config_dir
-    print(f"設定ディレクトリ: {config_dir}")
-    print(f"使用ポート: {port}")
+    logger.info(f"設定ディレクトリ: {config_dir}")
+    logger.info(f"使用ポート: {port}")
 
     # サーバー起動
     try:
         import uvicorn
 
-        uvicorn.run(app, host="127.0.0.1", port=port)
+        # コンソールなしモードでの特別な設定
+        if getattr(sys, "frozen", False) and not sys.stdout:
+            # Windows GUIモードの場合、uvicornのロギングを無効化
+            uvicorn_log_config = uvicorn.config.LOGGING_CONFIG
+            uvicorn_log_config["handlers"]["default"]["class"] = "logging.NullHandler"
+            uvicorn_log_config["handlers"]["access"]["class"] = "logging.NullHandler"
+            
+            uvicorn.run(app, host="127.0.0.1", port=port, log_config=uvicorn_log_config)
+        else:
+            uvicorn.run(app, host="127.0.0.1", port=port)
     except Exception as e:
-        print(f"サーバー起動エラー: {e}")
-        import traceback
-
-        traceback.print_exc()
+        logger.error(f"サーバー起動エラー: {e}", exc_info=True)
         # EXE実行時などのエラー処理
-        if getattr(sys, "frozen", False):
+        if getattr(sys, "frozen", False) and sys.stdout:
             import time
 
             print("5秒後に自動終了します...")
             time.sleep(5)
-        else:
+        elif not getattr(sys, "frozen", False):
             input("Enterキーを押すと終了します...")
 
 
