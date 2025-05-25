@@ -14,8 +14,8 @@ if (-not (Test-Path $spec)) {
     exit 1
 }
 
-# PyInstallerでパッケージングを実行
-pyinstaller --clean $spec
+# PyInstallerでパッケージングを実行（-yで確認プロンプトをスキップ）
+pyinstaller --clean -y $spec
 
 # データディレクトリの初期化スクリプトをコピー
 if (-not (Test-Path "dist\CocoroMemory\Data")) {
