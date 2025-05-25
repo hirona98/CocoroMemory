@@ -7,27 +7,11 @@ $src = "src/main.py"
 $spec = "CocoroMemory.spec"
 $datasEntry = "        ('pgsql/bin/*', 'pgsql/bin'),"
 
-# specファイルがなければ生成
+# specファイルがなければエラー
 if (-not (Test-Path $spec)) {
-    pyinstaller --name CocoroMemory $src --onefile --noconfirm
-}
-
-# datas に pgsql/bin を追加（重複しない場合のみ）
-$specContent = Get-Content $spec
-if ($specContent -notmatch "pgsql/bin") {
-    $newSpec = @()
-    $inAnalysis = $false
-    foreach ($line in $specContent) {
-        $newSpec += $line
-        if ($line -match '^a = Analysis') {
-            $inAnalysis = $true
-        }
-        if ($inAnalysis -and $line -match 'datas=\[') {
-            $newSpec += $datasEntry
-            $inAnalysis = $false
-        }
-    }
-    $newSpec | Set-Content $spec -Encoding UTF8
+    Write-Host "Error: $spec ファイルが見つかりません。" -ForegroundColor Red
+    Write-Host "最初に手動でspecファイルを作成する必要があります。" -ForegroundColor Red
+    exit 1
 }
 
 # PyInstallerでパッケージングを実行
