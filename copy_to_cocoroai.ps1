@@ -64,6 +64,25 @@ try {
     }
     
     Write-Host "コピー完了！" -ForegroundColor Green
+    
+    # LICENSES.txtをコピー
+    $licensesSource = Join-Path $scriptPath "LICENSES.txt"
+    $licensesTarget = Join-Path $targetDir "LICENSES.txt"
+    
+    if (Test-Path $licensesSource) {
+        Write-Host "LICENSES.txtをコピー中..." -ForegroundColor Yellow
+        try {
+            Copy-Item -Path $licensesSource -Destination $licensesTarget -Force
+            Write-Host "LICENSES.txtのコピー完了" -ForegroundColor Green
+        }
+        catch {
+            Write-Host "警告: LICENSES.txtのコピーに失敗しました: $_" -ForegroundColor Yellow
+        }
+    }
+    else {
+        Write-Host "警告: LICENSES.txtが見つかりません: $licensesSource" -ForegroundColor Yellow
+    }
+    
     Write-Host "コピー先: $targetDir" -ForegroundColor Cyan
 }
 catch {
