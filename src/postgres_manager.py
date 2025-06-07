@@ -2,6 +2,29 @@ import os
 import subprocess
 import sys
 import time
+import locale
+
+
+def get_short_path_name(long_path):
+    """Windows で短いパス名（8.3形式）を取得する"""
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            from ctypes import wintypes
+            _GetShortPathNameW = ctypes.windll.kernel32.GetShortPathNameW
+            _GetShortPathNameW.argtypes = [wintypes.LPCWSTR, wintypes.LPWSTR, wintypes.DWORD]
+            _GetShortPathNameW.restype = wintypes.DWORD
+            
+            length = _GetShortPathNameW(long_path, None, 0)
+            if length == 0:
+                return long_path
+            
+            output = ctypes.create_unicode_buffer(length)
+            _GetShortPathNameW(long_path, output, length)
+            return output.value
+        except:
+            return long_path
+    return long_path
 
 
 class Config:
@@ -31,21 +54,29 @@ class PostgresInitializer:
 
         if not self.is_initialized():
             print("PostgreSQLデータディレクトリを初期化しています...")
+            # 日本語パス対策: 環境変数でパスを渡す
+            env = os.environ.copy()
+            env["PGDATA"] = self.data_dir
+            
+            # 短いパス名を使用
+            short_data_dir = get_short_path_name(self.data_dir)
+            
             subprocess.run(
                 [
                     self.initdb_exe,
                     "-D",
-                    self.data_dir,
+                    short_data_dir,
                     "-U",
                     Config.POSTGRES_USER,
                     "--encoding=UTF8",
                     "--locale=C",
                 ],
                 check=True,
+                env=env,
             )
 
-            # パスワード設定用のSQLファイルを作成
-            with open(os.path.join(self.base_dir, "set_password.sql"), "w") as f:
+            # パスワード設定用のSQLファイルを作成（エンコーディング指定）
+            with open(os.path.join(self.base_dir, "set_password.sql"), "w", encoding="utf-8") as f:
                 f.write(
                     f"ALTER USER {Config.POSTGRES_USER} WITH PASSWORD '{Config.POSTGRES_PASSWORD}';"
                 )
@@ -128,19 +159,27 @@ class PostgresServerManager:
         """PostgreSQLサーバーを起動"""
         print("PostgreSQLサーバーを起動中...")
         try:
+            # 日本語パス対策
+            short_data_dir = get_short_path_name(self.data_dir)
+            short_log_file = get_short_path_name(self.log_file)
+            
+            env = os.environ.copy()
+            env["PGDATA"] = self.data_dir
+            
             subprocess.run(
                 [
                     self.pg_ctl_exe,
                     "start",
                     "-D",
-                    self.data_dir,
+                    short_data_dir,
                     "-l",
-                    self.log_file,
+                    short_log_file,
                     "-o",
                     f'"-p {Config.POSTGRES_PORT}"',
                     "-w",  # 起動完了まで待機
                 ],
                 check=True,
+                env=env,
             )
 
             # 数秒待機してサーバーが起動するのを待つ
@@ -150,7 +189,7 @@ class PostgresServerManager:
             try:
                 pid_file = os.path.join(self.data_dir, "postmaster.pid")
                 if os.path.exists(pid_file):
-                    with open(pid_file, 'r') as f:
+                    with open(pid_file, 'r', encoding='utf-8') as f:
                         self.postgres_pid = int(f.readline().strip())
                         print(f"PostgreSQL プロセスID: {self.postgres_pid}")
             except Exception as e:
@@ -181,10 +220,16 @@ class PostgresServerManager:
     def stop_server(self):
         """PostgreSQLサーバーを停止"""
         try:
+            # 日本語パス対策
+            short_data_dir = get_short_path_name(self.data_dir)
+            env = os.environ.copy()
+            env["PGDATA"] = self.data_dir
+            
             status = subprocess.run(
-                [self.pg_ctl_exe, "status", "-D", self.data_dir],
+                [self.pg_ctl_exe, "status", "-D", short_data_dir],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
+                env=env,
             )
             if status.returncode != 0:
                 print("PostgreSQLサーバーは既に停止しているか実行されていません")
@@ -194,10 +239,11 @@ class PostgresServerManager:
 
             # まず正常停止を試みる
             result = subprocess.run(
-                [self.pg_ctl_exe, "stop", "-D", self.data_dir, "-m", "fast"],
+                [self.pg_ctl_exe, "stop", "-D", short_data_dir, "-m", "fast"],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                timeout=10  # 10秒でタイムアウト
+                timeout=10,  # 10秒でタイムアウト
+                env=env,
             )
             
             if result.returncode == 0:
@@ -205,10 +251,11 @@ class PostgresServerManager:
             else:
                 print("正常停止に失敗しました。強制停止を試みます...")
                 subprocess.run(
-                    [self.pg_ctl_exe, "stop", "-D", self.data_dir, "-m", "immediate"],
+                    [self.pg_ctl_exe, "stop", "-D", short_data_dir, "-m", "immediate"],
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
-                    timeout=5
+                    timeout=5,
+                    env=env,
                 )
                 
             # 念のため残存プロセスをチェック

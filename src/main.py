@@ -13,7 +13,7 @@ from fastapi import FastAPI
 
 from config_loader import load_config
 from litellm_chatmemory import LiteLLMChatMemory
-from postgres_manager import PostgresManager
+from postgres_manager import PostgresManager, get_short_path_name
 
 # .envファイルから環境変数を読み込む
 load_dotenv()
@@ -30,13 +30,23 @@ log_dir.mkdir(exist_ok=True)
 
 # ロギングの設定
 log_file = log_dir / "cocoro_memory.log"
+
+# 日本語パス対策: RotatingFileHandlerは短いパス名を使用
+try:
+    short_log_file = get_short_path_name(str(log_file))
+    handlers = [
+        RotatingFileHandler(short_log_file, maxBytes=10*1024*1024, backupCount=5, encoding='utf-8'),
+        logging.StreamHandler(sys.stdout) if not getattr(sys, 'frozen', False) or sys.stdout else logging.NullHandler()
+    ]
+except Exception as e:
+    # ログファイルが作成できない場合は標準出力のみ
+    print(f"警告: ログファイルの作成に失敗しました: {e}")
+    handlers = [logging.StreamHandler(sys.stdout)]
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        RotatingFileHandler(log_file, maxBytes=10*1024*1024, backupCount=5),
-        logging.StreamHandler(sys.stdout) if not getattr(sys, 'frozen', False) or sys.stdout else logging.NullHandler()
-    ]
+    handlers=handlers
 )
 logger = logging.getLogger(__name__)
 
