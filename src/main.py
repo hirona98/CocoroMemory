@@ -9,7 +9,7 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
 
 from config_loader import load_config
 from litellm_chatmemory import LiteLLMChatMemory
@@ -60,7 +60,7 @@ def create_app(config_dir=None):
 
     Returns:
     -------
-        tuple: (FastAPI アプリケーション, ポート番号, PostgresManager インスタンス)
+        tuple: (FastAPI アプリケーション, ポート番号, PostgresManager インスタンス, シャットダウンイベント)
 
     """
     # 設定ファイルを読み込む
@@ -119,8 +119,32 @@ def create_app(config_dir=None):
 
     app = FastAPI()
     app.include_router(cm.get_router())
+    
+    # シャットダウンイベントを作成
+    shutdown_event = threading.Event()
+    
+    # シャットダウンエンドポイントを追加
+    @app.post("/api/control")
+    async def control_endpoint(request: dict):
+        """制御用エンドポイント
+        
+        Args:
+            request (dict): リクエストボディ
+                - command: "shutdown" でシャットダウン
+        
+        Returns:
+            dict: レスポンス
+        """
+        command = request.get("command")
+        if command == "shutdown":
+            logger.info("REST API経由でシャットダウンリクエストを受信しました")
+            # 非同期でシャットダウンイベントをセット
+            threading.Thread(target=lambda: shutdown_event.set()).start()
+            return {"status": "success", "message": "Shutdown initiated"}
+        else:
+            return {"status": "error", "message": f"Unknown command: {command}"}
 
-    return app, memory_port, pg_manager
+    return app, memory_port, pg_manager, shutdown_event
 
 
 def main():
@@ -136,13 +160,10 @@ def main():
         args.config_dir = args.folder_path
 
     # アプリケーションを作成
-    app, port, pg_manager = create_app(args.config_dir)
+    app, port, pg_manager, shutdown_event = create_app(args.config_dir)
 
     # アプリケーション終了時にPostgreSQLサーバーを停止するよう登録
     atexit.register(pg_manager.stop_server)
-    
-    # シャットダウンイベント
-    shutdown_event = threading.Event()
     
     def signal_handler(sig, frame):
         """シグナルハンドラー：Ctrl+CやKillシグナルを受けた時の処理"""
