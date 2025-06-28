@@ -79,12 +79,18 @@ class LiteLLMChatMemory(ChatMemory):
 
         """
         try:
-            # 埋め込みモデルを使用
-            response = await litellm.aembedding(
-                model=self.embedded_model,
-                input=text,
-                api_key=self.embedded_api_key,  # APIキーを直接指定
-            )
+            # text-embedding-3シリーズの場合はdimensionsパラメータを使用
+            embedding_params = {
+                "model": self.embedded_model,
+                "input": text,
+                "api_key": self.embedded_api_key,
+            }
+            
+            # text-embedding-3シリーズの場合はdimensions=1536を指定
+            if "text-embedding-3" in self.embedded_model:
+                embedding_params["dimensions"] = 1536
+            
+            response = await litellm.aembedding(**embedding_params)
 
             # レスポンスの型を確認してデバッグ
             embedding = None
@@ -113,6 +119,11 @@ class LiteLLMChatMemory(ChatMemory):
                 current_dim = len(embedding)
                 target_dim = 1536  # ChatMemoryが期待する次元数
                 
+                # text-embedding-3シリーズでdimensionsパラメータを使用した場合は調整不要
+                if "text-embedding-3" in self.embedded_model and current_dim == target_dim:
+                    return embedding
+                
+                # その他のモデルの場合は従来通り調整
                 if current_dim != target_dim:
                     print(f"Embedding dimension mismatch: got {current_dim}, expected {target_dim}")
                     if current_dim < target_dim:
