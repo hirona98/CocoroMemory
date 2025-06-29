@@ -1,10 +1,11 @@
 import argparse
 import atexit
-import os
-import sys
 import logging
+import os
 import signal
+import sys
 import threading
+from datetime import datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
@@ -14,12 +15,13 @@ from fastapi import FastAPI, Response
 from config_loader import load_config
 from litellm_chatmemory import LiteLLMChatMemory
 from postgres_manager import PostgresManager, get_short_path_name
+from reminder_manager import ReminderManager
 
 # .envファイルから環境変数を読み込む
 load_dotenv()
 
 # ログディレクトリの設定
-if getattr(sys, 'frozen', False):
+if getattr(sys, "frozen", False):
     # PyInstallerでパッケージ化されている場合
     log_dir = Path(sys._MEIPASS).parent / "Logs"
 else:
@@ -35,8 +37,12 @@ log_file = log_dir / "cocoro_memory.log"
 try:
     short_log_file = get_short_path_name(str(log_file))
     handlers = [
-        RotatingFileHandler(short_log_file, maxBytes=10*1024*1024, backupCount=5, encoding='utf-8'),
-        logging.StreamHandler(sys.stdout) if not getattr(sys, 'frozen', False) or sys.stdout else logging.NullHandler()
+        RotatingFileHandler(
+            short_log_file, maxBytes=10 * 1024 * 1024, backupCount=5, encoding="utf-8"
+        ),
+        logging.StreamHandler(sys.stdout)
+        if not getattr(sys, "frozen", False) or sys.stdout
+        else logging.NullHandler(),
     ]
 except Exception as e:
     # ログファイルが作成できない場合は標準出力のみ
@@ -45,8 +51,8 @@ except Exception as e:
 
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=handlers
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=handlers,
 )
 logger = logging.getLogger(__name__)
 
@@ -119,19 +125,32 @@ def create_app(config_dir=None):
 
     app = FastAPI()
     app.include_router(cm.get_router())
-    
+
+    # リマインダーマネージャーを初期化
+    reminder_manager = ReminderManager(
+        db_host="127.0.0.1",
+        db_port=postgres_port,
+        notification_port=config.get("cocoroNotificationApiPort", 55604),
+    )
+
+    # リマインダーAPIルーターを追加
+    app.include_router(reminder_manager.get_router())
+
+    # リマインダースケジューラーを開始
+    reminder_manager.start_scheduler()
+
     # シャットダウンイベントを作成
     shutdown_event = threading.Event()
-    
+
     # シャットダウンエンドポイントを追加
     @app.post("/api/control")
     async def control_endpoint(request: dict):
         """制御用エンドポイント
-        
+
         Args:
             request (dict): リクエストボディ
                 - command: "shutdown" でシャットダウン
-        
+
         Returns:
             dict: レスポンス
         """
@@ -144,7 +163,23 @@ def create_app(config_dir=None):
         else:
             return {"status": "error", "message": f"Unknown command: {command}"}
 
-    return app, memory_port, pg_manager, shutdown_event
+    # ヘルスチェックエンドポイント
+    @app.get("/health")
+    async def health_check():
+        """ヘルスチェック用エンドポイント"""
+        return {
+            "status": "healthy",
+            "timestamp": datetime.now().isoformat(),
+            "services": {
+                "chatmemory": "running",
+                "reminder_scheduler": "running"
+                if reminder_manager.scheduler_running
+                else "stopped",
+                "database": "running",
+            },
+        }
+
+    return app, memory_port, pg_manager, shutdown_event, reminder_manager
 
 
 def main():
@@ -160,16 +195,18 @@ def main():
         args.config_dir = args.folder_path
 
     # アプリケーションを作成
-    app, port, pg_manager, shutdown_event = create_app(args.config_dir)
+    app, port, pg_manager, shutdown_event, reminder_manager = create_app(args.config_dir)
 
     # アプリケーション終了時にPostgreSQLサーバーを停止するよう登録
     atexit.register(pg_manager.stop_server)
-    
+    # リマインダースケジューラーも停止するよう登録
+    atexit.register(reminder_manager.stop_scheduler)
+
     def signal_handler(sig, frame):
         """シグナルハンドラー：Ctrl+CやKillシグナルを受けた時の処理"""
         logger.info(f"シグナル {sig} を受信しました。シャットダウンを開始します...")
         shutdown_event.set()
-    
+
     # Windowsでのシグナル設定
     if sys.platform == "win32":
         signal.signal(signal.SIGINT, signal_handler)
@@ -188,12 +225,12 @@ def main():
     # サーバー起動
     try:
         import uvicorn
-        from uvicorn import Server, Config
-        
+        from uvicorn import Config, Server
+
         # Uvicornサーバーのカスタム設定
         def run_server():
             config = Config(app=app, host="127.0.0.1", port=port)
-            
+
             # コンソールなしモードでの特別な設定
             if getattr(sys, "frozen", False) and not sys.stdout:
                 # Windows GUIモードの場合、uvicornのロギングを無効化
@@ -201,23 +238,23 @@ def main():
                 uvicorn_log_config["handlers"]["default"]["class"] = "logging.NullHandler"
                 uvicorn_log_config["handlers"]["access"]["class"] = "logging.NullHandler"
                 config.log_config = uvicorn_log_config
-            
+
             server = Server(config)
-            
+
             # シャットダウンイベントを監視するスレッド
             def monitor_shutdown():
                 shutdown_event.wait()
                 logger.info("シャットダウンイベントを検出しました")
                 server.should_exit = True
-            
+
             monitor_thread = threading.Thread(target=monitor_shutdown, daemon=True)
             monitor_thread.start()
-            
+
             # サーバーを実行
             server.run()
-        
+
         run_server()
-        
+
     except Exception as e:
         logger.error(f"サーバー起動エラー: {e}", exc_info=True)
         # EXE実行時などのエラー処理
@@ -229,6 +266,10 @@ def main():
         elif not getattr(sys, "frozen", False):
             input("Enterキーを押すと終了します...")
     finally:
+        # 明示的にリマインダースケジューラーを停止
+        logger.info("リマインダースケジューラーを停止しています...")
+        reminder_manager.stop_scheduler()
+
         # 明示的にPostgreSQLを停止
         logger.info("PostgreSQLサーバーを停止しています...")
         pg_manager.stop_server()
