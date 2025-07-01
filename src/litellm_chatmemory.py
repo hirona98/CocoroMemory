@@ -85,11 +85,11 @@ class LiteLLMChatMemory(ChatMemory):
                 "input": text,
                 "api_key": self.embedded_api_key,
             }
-            
+
             # text-embedding-3シリーズの場合はdimensions=1536を指定
             if "text-embedding-3" in self.embedded_model:
                 embedding_params["dimensions"] = 1536
-            
+
             response = await litellm.aembedding(**embedding_params)
 
             # レスポンスの型を確認してデバッグ
@@ -113,16 +113,16 @@ class LiteLLMChatMemory(ChatMemory):
                         raise ValueError(f"Unexpected data format: {response.data[0]}")
                 else:
                     raise ValueError(f"Unexpected response format: {response}")
-            
+
             # ベクトルのサイズを確認し、必要に応じて調整
             if embedding:
                 current_dim = len(embedding)
                 target_dim = 1536  # ChatMemoryが期待する次元数
-                
+
                 # text-embedding-3シリーズでdimensionsパラメータを使用した場合は調整不要
                 if "text-embedding-3" in self.embedded_model and current_dim == target_dim:
                     return embedding
-                
+
                 # その他のモデルの場合は従来通り調整
                 if current_dim != target_dim:
                     print(f"Embedding dimension mismatch: got {current_dim}, expected {target_dim}")
@@ -132,16 +132,16 @@ class LiteLLMChatMemory(ChatMemory):
                     else:
                         # トリミング
                         embedding = embedding[:target_dim]
-                        
+
                 return embedding
             else:
                 raise ValueError("No embedding found in response")
         except Exception as e:
             print(f"Embedding error: {e}")
             print(f"Model: {self.embedded_model}")
-            print(f"API Key: {self.embedded_api_key[:10]}...") 
+            print(f"API Key: {self.embedded_api_key[:10]}...")
             # response変数が定義されている場合のみ出力
-            if 'response' in locals():
+            if "response" in locals():
                 print(f"Response type: {type(response)}")
                 print(f"Response: {response}")
             raise

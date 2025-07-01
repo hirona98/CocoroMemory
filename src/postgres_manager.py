@@ -2,7 +2,6 @@ import os
 import subprocess
 import sys
 import time
-import locale
 
 
 def get_short_path_name(long_path):
@@ -11,26 +10,27 @@ def get_short_path_name(long_path):
         try:
             import ctypes
             from ctypes import wintypes
+
             _GetShortPathNameW = ctypes.windll.kernel32.GetShortPathNameW
             _GetShortPathNameW.argtypes = [wintypes.LPCWSTR, wintypes.LPWSTR, wintypes.DWORD]
             _GetShortPathNameW.restype = wintypes.DWORD
-            
+
             length = _GetShortPathNameW(long_path, None, 0)
             if length == 0:
                 return long_path
-            
+
             output = ctypes.create_unicode_buffer(length)
             _GetShortPathNameW(long_path, output, length)
             return output.value
-        except:
+        except Exception:  # noqa: BLE001
             return long_path
     return long_path
 
 
 class Config:
-    POSTGRES_PORT = "5433"  # デフォルト値、後で設定から更新される
-    POSTGRES_USER = os.getenv("POSTGRES_USER", "postgres")
-    POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "postgres")
+    POSTGRES_PORT: str = "5432"  # デフォルト値、後で設定から更新される
+    POSTGRES_USER: str = os.getenv("POSTGRES_USER", "postgres")
+    POSTGRES_PASSWORD: str = os.getenv("POSTGRES_PASSWORD", "postgres")
 
 
 class PostgresInitializer:
@@ -57,10 +57,10 @@ class PostgresInitializer:
             # 日本語パス対策: 環境変数でパスを渡す
             env = os.environ.copy()
             env["PGDATA"] = self.data_dir
-            
+
             # 短いパス名を使用
             short_data_dir = get_short_path_name(self.data_dir)
-            
+
             subprocess.run(
                 [
                     self.initdb_exe,
@@ -91,7 +91,7 @@ class PostgresInitializer:
     def _apply_lightweight_config(self):
         """軽量化設定をpostgresql.confに適用"""
         config_file = os.path.join(self.data_dir, "postgresql.conf")
-        
+
         # 軽量化設定
         lightweight_settings = {
             # メモリ設定
@@ -115,14 +115,14 @@ class PostgresInitializer:
             "autovacuum_max_workers": "1",
             "autovacuum_naptime": "5min",
         }
-        
+
         # 設定ファイルを読み込み
         with open(config_file, "r", encoding="utf-8") as f:
             lines = f.readlines()
-        
+
         # 適用済みの設定を記録
         applied_settings = set()
-        
+
         # 設定を更新
         for i, line in enumerate(lines):
             for key, value in lightweight_settings.items():
@@ -131,18 +131,20 @@ class PostgresInitializer:
                     lines[i] = f"{key} = {value}\n"
                     applied_settings.add(key)
                     break
-        
+
         # まだ適用されていない設定を末尾に追加
-        remaining_settings = {k: v for k, v in lightweight_settings.items() if k not in applied_settings}
+        remaining_settings = {
+            k: v for k, v in lightweight_settings.items() if k not in applied_settings
+        }
         if remaining_settings:
             lines.append("\n# 軽量化設定\n")
             for key, value in remaining_settings.items():
                 lines.append(f"{key} = {value}\n")
-        
+
         # 設定ファイルを書き込み
         with open(config_file, "w", encoding="utf-8") as f:
             f.writelines(lines)
-        
+
         print("軽量化設定を適用しました")
 
 
@@ -162,10 +164,10 @@ class PostgresServerManager:
             # 日本語パス対策
             short_data_dir = get_short_path_name(self.data_dir)
             short_log_file = get_short_path_name(self.log_file)
-            
+
             env = os.environ.copy()
             env["PGDATA"] = self.data_dir
-            
+
             subprocess.run(
                 [
                     self.pg_ctl_exe,
@@ -184,12 +186,12 @@ class PostgresServerManager:
 
             # 数秒待機してサーバーが起動するのを待つ
             time.sleep(3)
-            
+
             # postmaster.pidファイルからPIDを取得
             try:
                 pid_file = os.path.join(self.data_dir, "postmaster.pid")
                 if os.path.exists(pid_file):
-                    with open(pid_file, 'r', encoding='utf-8') as f:
+                    with open(pid_file, "r", encoding="utf-8") as f:
                         self.postgres_pid = int(f.readline().strip())
                         print(f"PostgreSQL プロセスID: {self.postgres_pid}")
             except Exception as e:
@@ -224,7 +226,7 @@ class PostgresServerManager:
             short_data_dir = get_short_path_name(self.data_dir)
             env = os.environ.copy()
             env["PGDATA"] = self.data_dir
-            
+
             status = subprocess.run(
                 [self.pg_ctl_exe, "status", "-D", short_data_dir],
                 stdout=subprocess.PIPE,
@@ -245,7 +247,7 @@ class PostgresServerManager:
                 timeout=10,  # 10秒でタイムアウト
                 env=env,
             )
-            
+
             if result.returncode == 0:
                 print("PostgreSQLサーバーを正常に停止しました")
             else:
@@ -257,7 +259,7 @@ class PostgresServerManager:
                     timeout=5,
                     env=env,
                 )
-                
+
             # 念のため残存プロセスをチェック
             self._kill_remaining_postgres_processes()
             return True
@@ -270,14 +272,14 @@ class PostgresServerManager:
             print(f"サーバー停止中にエラーが発生しました: {e}")
             self._kill_remaining_postgres_processes()
             return True
-    
+
     def _kill_remaining_postgres_processes(self):
         """残存するPostgreSQLプロセスを強制終了（自分が起動したもののみ）"""
         if sys.platform == "win32":
             try:
                 # Windowsでpostgres.exeプロセスを検索して終了
                 import psutil
-                
+
                 # 自分が起動したプロセスのPIDがある場合
                 if self.postgres_pid:
                     try:
@@ -285,9 +287,9 @@ class PostgresServerManager:
                         # 親プロセスとその子プロセスを取得
                         children = parent_proc.children(recursive=True)
                         children.append(parent_proc)
-                        
+
                         for proc in children:
-                            if proc.is_running() and proc.name() == 'postgres.exe':
+                            if proc.is_running() and proc.name() == "postgres.exe":
                                 print(f"PostgreSQLプロセス (PID: {proc.pid}) を終了します")
                                 proc.terminate()
                                 proc.wait(timeout=5)
@@ -295,13 +297,14 @@ class PostgresServerManager:
                         pass
                 else:
                     # PIDが不明な場合は、データディレクトリで判別
-                    for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+                    for proc in psutil.process_iter(["pid", "name", "cmdline"]):
                         try:
-                            if proc.info['name'] == 'postgres.exe':
+                            if proc.info["name"] == "postgres.exe":
                                 # コマンドラインにデータディレクトリが含まれているか確認
-                                cmdline = ' '.join(proc.info.get('cmdline', []))
+                                cmdline = " ".join(proc.info.get("cmdline", []))
                                 if self.data_dir in cmdline:
-                                    print(f"残存PostgreSQLプロセス (PID: {proc.info['pid']}) を終了します")
+                                    pid = proc.info["pid"]
+                                    print(f"残存PostgreSQLプロセス (PID: {pid}) を終了します")
                                     proc.terminate()
                                     proc.wait(timeout=5)
                         except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.TimeoutExpired):
@@ -314,7 +317,7 @@ class PostgresServerManager:
 class PostgresManager:
     def __init__(self, base_dir=None, port=None):
         """PostgreSQLサーバーを管理するクラス
-        
+
         Args:
             base_dir: ベースディレクトリ
             port: PostgreSQLのポート番号
@@ -351,7 +354,7 @@ class PostgresManager:
 
         # ログファイルのパス
         self.log_file = os.path.join(self.log_dir, "postgresql.log")
-        
+
         # ポート設定の更新
         if port:
             Config.POSTGRES_PORT = str(port)

@@ -73,7 +73,35 @@ a = Analysis(
     pathex=[],
     binaries=[],
     datas=all_datas,
-    hiddenimports=['uvicorn.logging', 'uvicorn.loops', 'uvicorn.loops.auto', 'uvicorn.protocols', 'uvicorn.protocols.http', 'uvicorn.protocols.http.auto', 'uvicorn.protocols.websockets', 'uvicorn.protocols.websockets.auto', 'uvicorn.lifespan', 'uvicorn.lifespan.on', 'uvicorn.lifespan.off', 'tiktoken_ext.openai_public', 'tiktoken_ext'] + collect_submodules('tiktoken_ext'),
+    hiddenimports=[
+        # uvicorn関連（FastAPI実行に必要）
+        'uvicorn.logging', 'uvicorn.loops', 'uvicorn.loops.auto', 
+        'uvicorn.protocols', 'uvicorn.protocols.http', 'uvicorn.protocols.http.auto', 
+        'uvicorn.protocols.websockets', 'uvicorn.protocols.websockets.auto', 
+        'uvicorn.lifespan', 'uvicorn.lifespan.on', 'uvicorn.lifespan.off',
+        # tiktoken関連（LLM使用時に必要）
+        'tiktoken_ext.openai_public', 'tiktoken_ext',
+        # PostgreSQL関連
+        'psycopg2', 'psycopg2._psycopg', 'psycopg2.extensions', 'psycopg2.extras',
+        # Windows API関連（条件付きインポート）
+        'ctypes.wintypes',
+        # プロセス管理関連
+        'psutil', 'psutil._pswindows',
+        # HTTP関連
+        'httpx', 'httpx._client', 'httpx._config', 'httpx._exceptions',
+        # litellm関連（動的インポートが多い）
+        'litellm', 'litellm.llms', 'litellm.llms.openai', 'litellm.utils',
+        # pydantic関連（FastAPI依存）
+        'pydantic', 'pydantic.main', 'pydantic.fields', 'pydantic.validators',
+        # chatmemory関連
+        'chatmemory', 'chatmemory.llms', 'chatmemory.memory',
+        # dotenv関連
+        'dotenv', 'dotenv.main',
+        # pathlib関連（Python 3.10+での問題対策）
+        'pathlib',
+        # asyncio関連
+        'asyncio', 'asyncio.events', 'asyncio.selector_events'
+    ] + collect_submodules('tiktoken_ext') + collect_submodules('litellm'),
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

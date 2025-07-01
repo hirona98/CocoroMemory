@@ -20,6 +20,21 @@ deactivate
 ```
 This creates a portable Windows executable in `dist/CocoroMemory/` with embedded PostgreSQL.
 
+#### PyInstaller Hidden Imports
+The application uses several modules that require explicit inclusion in PyInstaller:
+
+- **Conditional imports**: `ctypes.wintypes`, `psutil._pswindows` (Windows-specific)
+- **Dynamic imports**: `litellm.llms.*`, `tiktoken_ext.*`, `chatmemory.*`
+- **Database drivers**: `psycopg2.*` and related modules
+- **HTTP/Async**: `httpx.*`, `asyncio.*` modules
+- **FastAPI/uvicorn**: Various protocol and loop implementations
+
+These are handled in:
+- `CocoroMemory.spec` - Main PyInstaller configuration
+- `src/pyinstaller_imports.py` - Explicit imports for dependency detection
+
+**Note**: `pyinstaller_imports.py` will show lint warnings for unused imports, but these are intentionally kept for PyInstaller compatibility.
+
 ### Running Development Server
 ```powershell
 # Activate virtual environment first
@@ -40,6 +55,33 @@ mypy .
 
 # Format code with Ruff
 ruff format .
+```
+
+### Testing
+```powershell
+# Activate virtual environment first
+.venv\Scripts\activate
+
+# Install test dependencies
+pip install -r requirements.txt
+
+# Run all tests
+pytest
+
+# Run tests with verbose output
+pytest -v
+
+# Run specific test file
+pytest tests/test_config_loader.py
+
+# Run tests with coverage report
+pytest --cov=src
+
+# Run only unit tests (exclude integration tests)
+pytest tests/ -k "not integration"
+
+# Run only integration tests
+pytest tests/test_integration.py
 ```
 
 ## Architecture Overview

@@ -1,0 +1,36 @@
+{
+  "include": [
+    "src",
+    "tests"
+  ],
+  "exclude": [
+    "**/__pycache__",
+    ".venv",
+    "venv",
+    "build",
+    "dist",
+    "pgsql"
+  ],
+  "extraPaths": [
+    "./src"
+  ],
+  "pythonVersion": "3.10",
+  "venvPath": ".",
+  "venv": ".venv",
+  "typeCheckingMode": "basic",
+  "reportMissingImports": false,
+  "reportMissingTypeStubs": false,
+  "reportOptionalMemberAccess": false,
+  "executionEnvironments": [
+    {
+      "root": "src",
+      "pythonVersion": "3.10",
+      "extraPaths": []
+    },
+    {
+      "root": "tests",
+      "pythonVersion": "3.10",
+      "extraPaths": ["./src"]
+    }
+  ]
+}

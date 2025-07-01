@@ -10,7 +10,7 @@ import logging
 import threading
 import time
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 
 import httpx
 import psycopg2
@@ -62,10 +62,10 @@ class ReminderManager:
     def __init__(
         self,
         db_host: str = "127.0.0.1",
-        db_port: int = 5433,
+        db_port: int = 5432,
         db_name: str = "postgres",
         db_user: str = "postgres",
-        db_password: str = "postgres",
+        db_password: str = "postgres",  # noqa: S107
         notification_port: int = 55604,
     ):
         """
@@ -141,7 +141,9 @@ class ReminderManager:
                 with conn.cursor() as cursor:
                     cursor.execute(
                         """
-                        INSERT INTO reminders (user_id, trigger_time, message, reminder_type, preparation_minutes)
+                        INSERT INTO reminders (
+                            user_id, trigger_time, message, reminder_type, preparation_minutes
+                        )
                         VALUES (%s, %s, %s, %s, %s)
                         RETURNING id, created_at;
                     """,
@@ -184,7 +186,10 @@ class ReminderManager:
         try:
             with self.get_connection() as conn:
                 with conn.cursor() as cursor:
-                    query = "SELECT id, user_id, trigger_time, message, status, reminder_type, preparation_minutes, created_at, notified_at FROM reminders"
+                    query = (
+                        "SELECT id, user_id, trigger_time, message, status, reminder_type, "
+                        "preparation_minutes, created_at, notified_at FROM reminders"
+                    )
                     params = []
                     conditions = []
 
@@ -232,27 +237,34 @@ class ReminderManager:
         try:
             with self.get_connection() as conn:
                 with conn.cursor() as cursor:
-                    # 更新対象のフィールドを構築
-                    update_fields = []
+                    # 更新対象のフィールドを構築（安全なホワイトリスト方式）
+                    allowed_fields = {
+                        "trigger_time": "trigger_time = %s",
+                        "message": "message = %s",
+                        "status": "status = %s",
+                        "preparation_minutes": "preparation_minutes = %s",
+                    }
+
+                    update_clauses = []
                     params = []
 
                     if update_data.trigger_time is not None:
-                        update_fields.append("trigger_time = %s")
+                        update_clauses.append(allowed_fields["trigger_time"])
                         params.append(update_data.trigger_time)
 
                     if update_data.message is not None:
-                        update_fields.append("message = %s")
+                        update_clauses.append(allowed_fields["message"])
                         params.append(update_data.message)
 
                     if update_data.status is not None:
-                        update_fields.append("status = %s")
+                        update_clauses.append(allowed_fields["status"])
                         params.append(update_data.status)
 
                     if update_data.preparation_minutes is not None:
-                        update_fields.append("preparation_minutes = %s")
+                        update_clauses.append(allowed_fields["preparation_minutes"])
                         params.append(update_data.preparation_minutes)
 
-                    if not update_fields:
+                    if not update_clauses:
                         raise HTTPException(
                             status_code=400, detail="更新するフィールドが指定されていません"
                         )
@@ -262,10 +274,11 @@ class ReminderManager:
                     cursor.execute(
                         f"""
                         UPDATE reminders 
-                        SET {", ".join(update_fields)}
+                        SET {", ".join(update_clauses)}
                         WHERE id = %s
-                        RETURNING id, user_id, trigger_time, message, status, reminder_type, preparation_minutes, created_at, notified_at;
-                    """,
+                        RETURNING id, user_id, trigger_time, message, status, reminder_type, 
+                                 preparation_minutes, created_at, notified_at;
+                    """,  # noqa: S608
                         params,
                     )
 
@@ -435,7 +448,8 @@ class ReminderManager:
                             )
 
                             logger.info(
-                                f"事前通知を送信しました: ID={reminder_id}, メッセージ='{prep_message}'"
+                                f"事前通知を送信しました: ID={reminder_id}, "
+                                f"メッセージ='{prep_message}'"
                             )
 
                     conn.commit()

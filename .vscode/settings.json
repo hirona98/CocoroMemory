@@ -3,14 +3,29 @@
     "editor.codeActionsOnSave": {
         "source.organizeImports": "explicit"
     },
-    "isort.args": [
-        "--profile",
-        "black",
-        "--line-length",
-        "100"
-    ],
     "[python]": {
         "editor.defaultFormatter": "charliermarsh.ruff",
     },
-    "commentTranslate.hover.enabled": false
+    "commentTranslate.hover.enabled": false,
+    "python.analysis.extraPaths": [
+        "./src"
+    ],
+    "python.testing.pytestEnabled": true,
+    "python.testing.pytestArgs": [
+        "tests"
+    ],
+    "python.analysis.typeCheckingMode": "basic",
+    "python.analysis.diagnosticSeverityOverrides": {
+        "reportMissingImports": "none",
+        "reportGeneralTypeIssues": "none",
+        "reportOptionalMemberAccess": "none",
+        "reportOptionalSubscript": "none",
+        "reportPrivateImportUsage": "none",
+        "reportAttributeAccessIssue": "none"
+    },
+    "python.linting.enabled": false,
+    "python.linting.pylintEnabled": false,
+    "python.linting.flake8Enabled": false,
+    "ruff.lint.enable": true,
+    "ruff.format.enable": true
 }

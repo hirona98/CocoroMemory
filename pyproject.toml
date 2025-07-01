@@ -26,6 +26,11 @@ ignore = [
 # 除外ディレクトリ
 exclude = ["venv", ".venv", "build", "dist", "__pycache__"]
 
+# ファイル別の設定
+[tool.ruff.lint.per-file-ignores]
+"src/pyinstaller_imports.py" = ["F401"] # PyInstaller用インポートの未使用警告を無視
+"tests/*.py" = ["S101", "S105"]         # テストファイルでのassert使用とハードコードパスワードを許可
+
 # isortの設定
 [tool.ruff.lint.isort]
 known-first-party = ["cocoro_core"]
@@ -42,3 +47,12 @@ disallow_incomplete_defs = true
 module = "tests.*"
 disallow_untyped_defs = false
 disallow_incomplete_defs = false
+
+# pytestの設定
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_functions = "test_*"
+addopts = "-ra -q --strict-markers --tb=short"
+asyncio_mode = "auto"
+pythonpath = [".", "src"]

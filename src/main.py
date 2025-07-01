@@ -10,12 +10,26 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, Response
+from fastapi import FastAPI
 
-from config_loader import load_config
-from litellm_chatmemory import LiteLLMChatMemory
-from postgres_manager import PostgresManager, get_short_path_name
-from reminder_manager import ReminderManager
+# PyInstaller用の隠れたインポート（実行時は影響なし）
+try:
+    import pyinstaller_imports  # noqa: F401
+except ImportError:
+    pass
+
+try:
+    # パッケージとして実行される場合（pytest等）
+    from .config_loader import load_config
+    from .litellm_chatmemory import LiteLLMChatMemory
+    from .postgres_manager import PostgresManager, get_short_path_name
+    from .reminder_manager import ReminderManager
+except ImportError:
+    # 直接実行される場合
+    from config_loader import load_config
+    from litellm_chatmemory import LiteLLMChatMemory
+    from postgres_manager import PostgresManager, get_short_path_name
+    from reminder_manager import ReminderManager
 
 # .envファイルから環境変数を読み込む
 load_dotenv()
@@ -23,7 +37,7 @@ load_dotenv()
 # ログディレクトリの設定
 if getattr(sys, "frozen", False):
     # PyInstallerでパッケージ化されている場合
-    log_dir = Path(sys._MEIPASS).parent / "Logs"
+    log_dir = Path(getattr(sys, "_MEIPASS", os.path.dirname(sys.executable))).parent / "Logs"
 else:
     # 開発環境の場合
     log_dir = Path(__file__).parent.parent / "Logs"
@@ -66,7 +80,8 @@ def create_app(config_dir=None):
 
     Returns:
     -------
-        tuple: (FastAPI アプリケーション, ポート番号, PostgresManager インスタンス, シャットダウンイベント)
+        tuple: (FastAPI アプリケーション, ポート番号, PostgresManager インスタンス,
+                シャットダウンイベント)
 
     """
     # 設定ファイルを読み込む
@@ -89,7 +104,7 @@ def create_app(config_dir=None):
         embedded_api_key = api_key  # デフォルトは同じAPIキー
         embedded_model = "openai/text-embedding-3-small"
         memory_port = 55602
-        postgres_port = 5433  # デフォルトのPostgreSQLポート
+        postgres_port = 5432  # デフォルトのPostgreSQLポート
     else:
         current_char = character_list[current_char_index]
         llm_api_key = current_char.get("apiKey")
@@ -99,7 +114,7 @@ def create_app(config_dir=None):
         )  # デフォルトはLLMのAPIキー
         embedded_model = current_char.get("embeddedModel", "openai/text-embedding-3-small")
         memory_port = config.get("cocoroMemoryPort", 55602)
-        postgres_port = config.get("cocoroMemoryDBPort", 5433)  # PostgreSQLポート設定を追加
+        postgres_port = config.get("cocoroMemoryDBPort", 5432)  # PostgreSQLポート設定を追加
         # APIキーが設定ファイルにない場合はエラー
         if not llm_api_key:
             raise ValueError("APIキーが設定ファイルにもOPENAI_API_KEY環境変数にも見つかりません")
@@ -224,7 +239,6 @@ def main():
 
     # サーバー起動
     try:
-        import uvicorn
         from uvicorn import Config, Server
 
         # Uvicornサーバーのカスタム設定
@@ -234,7 +248,9 @@ def main():
             # コンソールなしモードでの特別な設定
             if getattr(sys, "frozen", False) and not sys.stdout:
                 # Windows GUIモードの場合、uvicornのロギングを無効化
-                uvicorn_log_config = uvicorn.config.LOGGING_CONFIG
+                from uvicorn.config import LOGGING_CONFIG
+                
+                uvicorn_log_config = LOGGING_CONFIG.copy()
                 uvicorn_log_config["handlers"]["default"]["class"] = "logging.NullHandler"
                 uvicorn_log_config["handlers"]["access"]["class"] = "logging.NullHandler"
                 config.log_config = uvicorn_log_config
