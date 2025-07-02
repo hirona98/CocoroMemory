@@ -88,7 +88,7 @@ class LiteLLMChatMemory(ChatMemory):
 
             # text-embedding-3シリーズの場合はdimensions=1536を指定
             if "text-embedding-3" in self.embedded_model:
-                embedding_params["dimensions"] = 1536
+                embedding_params["dimensions"] = 1536  # type: ignore
 
             response = await litellm.aembedding(**embedding_params)
 
@@ -128,9 +128,15 @@ class LiteLLMChatMemory(ChatMemory):
                     print(f"Embedding dimension mismatch: got {current_dim}, expected {target_dim}")
                     if current_dim < target_dim:
                         # パディング（0で埋める）
+                        msg = f"Warning: Padding embedding vector from {current_dim} to "
+                        msg += f"{target_dim} dimensions"
+                        print(msg)
                         embedding = embedding + [0.0] * (target_dim - current_dim)
                     else:
                         # トリミング
+                        msg = f"Warning: Trimming embedding vector from {current_dim} to "
+                        msg += f"{target_dim} dimensions"
+                        print(msg)
                         embedding = embedding[:target_dim]
 
                 return embedding
