@@ -70,7 +70,7 @@ all_datas = pgsql_datas + data_datas + scripts_datas + tiktoken_datas + litellm_
 
 a = Analysis(
     ['src/main.py'],
-    pathex=[],
+    pathex=[os.path.join(root_dir, 'src')],
     binaries=[],
     datas=all_datas,
     hiddenimports=[
