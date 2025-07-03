@@ -5,7 +5,6 @@ import os
 import signal
 import sys
 import threading
-from datetime import datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
@@ -24,14 +23,13 @@ try:
     from .db_migration import run_migration
     from .litellm_chatmemory import LiteLLMChatMemory
     from .postgres_manager import PostgresManager, get_short_path_name
-    from .reminder_manager import ReminderManager
 except ImportError:
     # 直接実行される場合
+
     from config_loader import load_config
     from db_migration import run_migration
     from litellm_chatmemory import LiteLLMChatMemory
     from postgres_manager import PostgresManager, get_short_path_name
-    from reminder_manager import ReminderManager
 
 # .envファイルから環境変数を読み込む
 load_dotenv()
@@ -132,7 +130,7 @@ def create_app(config_dir=None):
     if current_user_id:
         try:
             import asyncio
-            
+
             # 既存のイベントループを取得、なければ新規作成
             try:
                 loop = asyncio.get_event_loop()
@@ -141,7 +139,7 @@ def create_app(config_dir=None):
             except RuntimeError:
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
-            
+
             migration_executed = loop.run_until_complete(
                 run_migration(
                     db_host="127.0.0.1",
@@ -176,19 +174,6 @@ def create_app(config_dir=None):
     app = FastAPI()
     app.include_router(cm.get_router())
 
-    # リマインダーマネージャーを初期化
-    reminder_manager = ReminderManager(
-        db_host="127.0.0.1",
-        db_port=postgres_port,
-        notification_port=config.get("cocoroNotificationApiPort", 55604),
-    )
-
-    # リマインダーAPIルーターを追加
-    app.include_router(reminder_manager.get_router())
-
-    # リマインダースケジューラーを開始
-    reminder_manager.start_scheduler()
-
     # シャットダウンイベントを作成
     shutdown_event = threading.Event()
 
@@ -213,23 +198,7 @@ def create_app(config_dir=None):
         else:
             return {"status": "error", "message": f"Unknown command: {command}"}
 
-    # ヘルスチェックエンドポイント
-    @app.get("/health")
-    async def health_check():
-        """ヘルスチェック用エンドポイント"""
-        return {
-            "status": "healthy",
-            "timestamp": datetime.now().isoformat(),
-            "services": {
-                "chatmemory": "running",
-                "reminder_scheduler": "running"
-                if reminder_manager.scheduler_running
-                else "stopped",
-                "database": "running",
-            },
-        }
-
-    return app, memory_port, pg_manager, shutdown_event, reminder_manager
+    return app, memory_port, pg_manager, shutdown_event
 
 
 def main():
@@ -245,12 +214,10 @@ def main():
         args.config_dir = args.folder_path
 
     # アプリケーションを作成
-    app, port, pg_manager, shutdown_event, reminder_manager = create_app(args.config_dir)
+    app, port, pg_manager, shutdown_event = create_app(args.config_dir)
 
     # アプリケーション終了時にPostgreSQLサーバーを停止するよう登録
     atexit.register(pg_manager.stop_server)
-    # リマインダースケジューラーも停止するよう登録
-    atexit.register(reminder_manager.stop_scheduler)
 
     def signal_handler(sig, frame):
         """シグナルハンドラー：Ctrl+CやKillシグナルを受けた時の処理"""
@@ -284,7 +251,7 @@ def main():
             if getattr(sys, "frozen", False) and not sys.stdout:
                 # Windows GUIモードの場合、uvicornのロギングを無効化
                 from uvicorn.config import LOGGING_CONFIG
-                
+
                 uvicorn_log_config = LOGGING_CONFIG.copy()
                 uvicorn_log_config["handlers"]["default"]["class"] = "logging.NullHandler"
                 uvicorn_log_config["handlers"]["access"]["class"] = "logging.NullHandler"
@@ -317,10 +284,6 @@ def main():
         elif not getattr(sys, "frozen", False):
             input("Enterキーを押すと終了します...")
     finally:
-        # 明示的にリマインダースケジューラーを停止
-        logger.info("リマインダースケジューラーを停止しています...")
-        reminder_manager.stop_scheduler()
-
         # 明示的にPostgreSQLを停止
         logger.info("PostgreSQLサーバーを停止しています...")
         pg_manager.stop_server()
