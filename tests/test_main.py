@@ -284,6 +284,205 @@ class TestAppEndpoints:
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "error"
+        assert "Unknown command" in data["message"]
+
+    @patch("main.PostgresManager")
+    @patch("main.LiteLLMChatMemory") 
+    @patch("main.ReminderManager")
+    @patch("main.run_migration")
+    def test_create_app_migration_success(
+        self, mock_run_migration, mock_reminder_manager, mock_chatmemory, mock_postgres_manager
+    ):
+        """マイグレーション成功のテスト"""
+        # モックの設定
+        mock_pg_instance = Mock()
+        mock_postgres_manager.return_value = mock_pg_instance
+
+        mock_cm_instance = Mock()
+        mock_cm_instance.get_router.return_value = APIRouter()
+        mock_chatmemory.return_value = mock_cm_instance
+
+        mock_reminder_instance = Mock()
+        mock_reminder_instance.get_router.return_value = APIRouter()
+        mock_reminder_instance.scheduler_running = True
+        mock_reminder_manager.return_value = mock_reminder_instance
+
+        # マイグレーションが成功する設定
+        mock_run_migration.return_value = True
+
+        config_data = {
+            "characterList": [{"userId": "test_user", "apiKey": "test-key"}],
+            "currentCharacterIndex": 0
+        }
+        
+        with patch("main.load_config", return_value=config_data):
+            with patch("asyncio.get_event_loop") as mock_get_loop:
+                mock_loop = Mock()
+                mock_get_loop.return_value = mock_loop
+                mock_loop.is_closed.return_value = False
+                
+                app, _, _, _, _ = create_app()
+                
+                # マイグレーションが実行されたことを確認
+                mock_run_migration.assert_called_once()
+
+    @patch("main.PostgresManager")
+    @patch("main.LiteLLMChatMemory")
+    @patch("main.ReminderManager")
+    @patch("main.run_migration")
+    def test_create_app_migration_error(
+        self, mock_run_migration, mock_reminder_manager, mock_chatmemory, mock_postgres_manager
+    ):
+        """マイグレーションエラーのテスト"""
+        # モックの設定
+        mock_pg_instance = Mock()
+        mock_postgres_manager.return_value = mock_pg_instance
+
+        mock_cm_instance = Mock()
+        mock_cm_instance.get_router.return_value = APIRouter()
+        mock_chatmemory.return_value = mock_cm_instance
+
+        mock_reminder_instance = Mock()
+        mock_reminder_instance.get_router.return_value = APIRouter()
+        mock_reminder_instance.scheduler_running = True
+        mock_reminder_manager.return_value = mock_reminder_instance
+
+        # マイグレーションでエラーが発生する設定
+        mock_run_migration.side_effect = Exception("Migration error")
+
+        config_data = {
+            "characterList": [{"userId": "test_user", "apiKey": "test-key"}],
+            "currentCharacterIndex": 0
+        }
+        
+        with patch("main.load_config", return_value=config_data):
+            with patch("asyncio.get_event_loop") as mock_get_loop:
+                mock_loop = Mock()
+                mock_get_loop.return_value = mock_loop
+                mock_loop.is_closed.return_value = False
+                
+                # エラーが発生してもアプリが作成されることを確認
+                app, _, _, _, _ = create_app()
+                assert app is not None
+
+    @patch("main.PostgresManager")
+    @patch("main.LiteLLMChatMemory")
+    @patch("main.ReminderManager")
+    def test_create_app_no_user_id(
+        self, mock_reminder_manager, mock_chatmemory, mock_postgres_manager
+    ):
+        """userIdなしでのアプリ作成テスト"""
+        # モックの設定
+        mock_pg_instance = Mock()
+        mock_postgres_manager.return_value = mock_pg_instance
+
+        mock_cm_instance = Mock()
+        mock_cm_instance.get_router.return_value = APIRouter()
+        mock_chatmemory.return_value = mock_cm_instance
+
+        mock_reminder_instance = Mock()
+        mock_reminder_instance.get_router.return_value = APIRouter()
+        mock_reminder_instance.scheduler_running = True
+        mock_reminder_manager.return_value = mock_reminder_instance
+
+        config_data = {
+            "characterList": [{"apiKey": "test-key"}],  # userIdなし
+            "currentCharacterIndex": 0
+        }
+        
+        with patch("main.load_config", return_value=config_data):
+            app, _, _, _, _ = create_app()
+            assert app is not None
+
+    @patch("main.PostgresManager")
+    @patch("main.LiteLLMChatMemory")
+    @patch("main.ReminderManager")
+    def test_create_app_invalid_character_index(
+        self, mock_reminder_manager, mock_chatmemory, mock_postgres_manager
+    ):
+        """無効なキャラクターインデックスのテスト"""
+        # モックの設定
+        mock_pg_instance = Mock()
+        mock_postgres_manager.return_value = mock_pg_instance
+
+        mock_cm_instance = Mock()
+        mock_cm_instance.get_router.return_value = APIRouter()
+        mock_chatmemory.return_value = mock_cm_instance
+
+        mock_reminder_instance = Mock()
+        mock_reminder_instance.get_router.return_value = APIRouter()
+        mock_reminder_instance.scheduler_running = True
+        mock_reminder_manager.return_value = mock_reminder_instance
+
+        config_data = {
+            "characterList": [{"userId": "test_user", "apiKey": "test-key"}],
+            "currentCharacterIndex": 5  # 範囲外
+        }
+        
+        with patch("main.load_config", return_value=config_data):
+            with patch.dict(os.environ, {"OPENAI_API_KEY": "test-api-key"}):
+                app, _, _, _, _ = create_app()
+                assert app is not None
+
+    @patch("main.PostgresManager")
+    @patch("main.LiteLLMChatMemory")
+    @patch("main.ReminderManager")
+    def test_health_endpoint_scheduler_stopped(
+        self, mock_reminder_manager, mock_chatmemory, mock_postgres_manager
+    ):
+        """リマインダースケジューラー停止時のヘルスチェックテスト"""
+        # モックの設定
+        mock_pg_instance = Mock()
+        mock_postgres_manager.return_value = mock_pg_instance
+
+        mock_cm_instance = Mock()
+        mock_cm_instance.get_router.return_value = APIRouter()
+        mock_chatmemory.return_value = mock_cm_instance
+
+        mock_reminder_instance = Mock()
+        mock_reminder_instance.get_router.return_value = APIRouter()
+        mock_reminder_instance.scheduler_running = False  # 停止状態
+        mock_reminder_manager.return_value = mock_reminder_instance
+
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "test-api-key"}):
+            app, _, _, _, _ = create_app()
+            client = TestClient(app)
+
+            response = client.get("/health")
+
+            assert response.status_code == 200
+            data = response.json()
+            assert data["services"]["reminder_scheduler"] == "stopped"
+
+    @patch("main.PostgresManager")
+    @patch("main.LiteLLMChatMemory")
+    @patch("main.ReminderManager")
+    @patch.dict(os.environ, {"OPENAI_API_KEY": "test-api-key"})
+    def test_control_endpoint_unknown_command(
+        self, mock_reminder_manager, mock_chatmemory, mock_postgres_manager
+    ):
+        """制御エンドポイントの不明なコマンドテスト"""
+        # モックの設定
+        mock_pg_instance = Mock()
+        mock_postgres_manager.return_value = mock_pg_instance
+
+        mock_cm_instance = Mock()
+        mock_cm_instance.get_router.return_value = APIRouter()
+        mock_chatmemory.return_value = mock_cm_instance
+
+        mock_reminder_instance = Mock()
+        mock_reminder_instance.get_router.return_value = APIRouter()
+        mock_reminder_instance.scheduler_running = True
+        mock_reminder_manager.return_value = mock_reminder_instance
+
+        app, _, _, _, _ = create_app()
+        client = TestClient(app)
+
+        response = client.post("/api/control", json={"command": "unknown"})
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "error"
         assert "Unknown command: unknown" in data["message"]
 
 
