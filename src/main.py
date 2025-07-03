@@ -136,37 +136,10 @@ def create_app(config_dir=None):
     pg_manager.initialize_db()
     pg_manager.start_server()
 
-    # バージョン管理の初期化
-    try:
-        import asyncio
-
-        # 既存のイベントループを取得、なければ新規作成
-        try:
-            loop = asyncio.get_event_loop()
-            if loop.is_closed():
-                raise RuntimeError("Event loop is closed")
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-
-        version_initialized = loop.run_until_complete(
-            initialize_version_management_async(
-                db_host="127.0.0.1",
-                db_port=postgres_port,
-            )
-        )
-        if version_initialized:
-            logger.info("バージョン管理が初期化されました")
-        else:
-            logger.warning("バージョン管理の初期化に失敗しました")
-    except Exception as e:
-        logger.error(f"バージョン管理の初期化中にエラーが発生しました: {e}")
-        # バージョン管理エラーは致命的でないため続行
-
     # データベースマイグレーションを実行（バージョン管理テーブルの有無で判定）
     if current_user_id:
         try:
-            # バージョン管理テーブルの存在を確認
+            # バージョン管理テーブルの存在を確認（テーブル作成前にチェック）
             vm = VersionManager(db_host="127.0.0.1", db_port=postgres_port)
 
             if not vm.table_exists():
@@ -206,6 +179,33 @@ def create_app(config_dir=None):
             # マイグレーションエラーは致命的でないため続行
     else:
         logger.info("current_user_idが設定されていないため、マイグレーションをスキップします。")
+
+    # バージョン管理の初期化（マイグレーション後に実行）
+    try:
+        import asyncio
+
+        # 既存のイベントループを取得、なければ新規作成
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_closed():
+                raise RuntimeError("Event loop is closed")
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+        version_initialized = loop.run_until_complete(
+            initialize_version_management_async(
+                db_host="127.0.0.1",
+                db_port=postgres_port,
+            )
+        )
+        if version_initialized:
+            logger.info("バージョン管理が初期化されました")
+        else:
+            logger.warning("バージョン管理の初期化に失敗しました")
+    except Exception as e:
+        logger.error(f"バージョン管理の初期化中にエラーが発生しました: {e}")
+        # バージョン管理エラーは致命的でないため続行
 
     # LiteLLMChatMemory インスタンスを作成
     cm = LiteLLMChatMemory(
