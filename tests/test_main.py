@@ -22,9 +22,8 @@ class TestCreateApp:
 
     @patch("main.PostgresManager")
     @patch("main.LiteLLMChatMemory")
-    @patch("main.ReminderManager")
     def test_create_app_with_config_file(
-        self, mock_reminder_manager, mock_chatmemory, mock_postgres_manager
+        self, mock_chatmemory, mock_postgres_manager
     ):
         """設定ファイルが存在する場合のアプリ作成をテスト"""
         # モックの設定
@@ -35,10 +34,6 @@ class TestCreateApp:
         mock_cm_instance.get_router.return_value = APIRouter()
         mock_chatmemory.return_value = mock_cm_instance
 
-        mock_reminder_instance = Mock()
-        mock_reminder_instance.get_router.return_value = APIRouter()
-        mock_reminder_instance.scheduler_running = True
-        mock_reminder_manager.return_value = mock_reminder_instance
 
         # 設定ファイルを作成
         config = {
@@ -61,7 +56,7 @@ class TestCreateApp:
             json.dump(config, f, ensure_ascii=False)
 
         # アプリを作成
-        app, port, pg_manager, shutdown_event, reminder_manager = create_app(self.temp_dir)
+        app, port, pg_manager, shutdown_event = create_app(self.temp_dir)
 
         # 検証
         assert port == 55602
@@ -72,10 +67,9 @@ class TestCreateApp:
 
     @patch("main.PostgresManager")
     @patch("main.LiteLLMChatMemory")
-    @patch("main.ReminderManager")
     @patch.dict(os.environ, {"OPENAI_API_KEY": "env-api-key"})
     def test_create_app_without_config_file(
-        self, mock_reminder_manager, mock_chatmemory, mock_postgres_manager
+        self, mock_chatmemory, mock_postgres_manager
     ):
         """設定ファイルが存在しない場合のアプリ作成をテスト"""
         # モックの設定
@@ -86,13 +80,9 @@ class TestCreateApp:
         mock_cm_instance.get_router.return_value = APIRouter()
         mock_chatmemory.return_value = mock_cm_instance
 
-        mock_reminder_instance = Mock()
-        mock_reminder_instance.get_router.return_value = APIRouter()
-        mock_reminder_instance.scheduler_running = True
-        mock_reminder_manager.return_value = mock_reminder_instance
 
         # 存在しないディレクトリを指定
-        app, port, pg_manager, shutdown_event, reminder_manager = create_app("/nonexistent/path")
+        app, port, pg_manager, shutdown_event = create_app("/nonexistent/path")
 
         # 検証
         assert port == 55602  # デフォルト値
@@ -103,9 +93,8 @@ class TestCreateApp:
 
     @patch("main.PostgresManager")
     @patch("main.LiteLLMChatMemory")
-    @patch("main.ReminderManager")
     def test_create_app_missing_api_key(
-        self, mock_reminder_manager, mock_chatmemory, mock_postgres_manager
+        self, mock_chatmemory, mock_postgres_manager
     ):
         """APIキーが設定されていない場合のエラーをテスト"""
         with patch.dict(os.environ, {}, clear=True):
@@ -114,9 +103,8 @@ class TestCreateApp:
 
     @patch("main.PostgresManager")
     @patch("main.LiteLLMChatMemory")
-    @patch("main.ReminderManager")
     def test_create_app_invalid_character_index(
-        self, mock_reminder_manager, mock_chatmemory, mock_postgres_manager
+        self, mock_chatmemory, mock_postgres_manager
     ):
         """無効なキャラクターインデックスの場合のテスト"""
         # モックの設定
@@ -127,10 +115,6 @@ class TestCreateApp:
         mock_cm_instance.get_router.return_value = APIRouter()
         mock_chatmemory.return_value = mock_cm_instance
 
-        mock_reminder_instance = Mock()
-        mock_reminder_instance.get_router.return_value = APIRouter()
-        mock_reminder_instance.scheduler_running = True
-        mock_reminder_manager.return_value = mock_reminder_instance
 
         # 無効なインデックスを持つ設定ファイルを作成
         config = {
@@ -144,16 +128,15 @@ class TestCreateApp:
 
         # 環境変数を設定
         with patch.dict(os.environ, {"OPENAI_API_KEY": "env-api-key"}):
-            app, port, pg_manager, shutdown_event, reminder_manager = create_app(self.temp_dir)
+            app, port, pg_manager, shutdown_event = create_app(self.temp_dir)
 
             # デフォルト値が使用されることを確認
             assert port == 55602
 
     @patch("main.PostgresManager")
     @patch("main.LiteLLMChatMemory")
-    @patch("main.ReminderManager")
     def test_create_app_missing_api_key_in_config(
-        self, mock_reminder_manager, mock_chatmemory, mock_postgres_manager
+        self, mock_chatmemory, mock_postgres_manager
     ):
         """設定ファイルにAPIキーがない場合のエラーをテスト"""
         # APIキーが設定されていない設定ファイルを作成
@@ -186,10 +169,9 @@ class TestAppEndpoints:
 
     @patch("main.PostgresManager")
     @patch("main.LiteLLMChatMemory")
-    @patch("main.ReminderManager")
     @patch.dict(os.environ, {"OPENAI_API_KEY": "test-api-key"})
     def test_health_check_endpoint(
-        self, mock_reminder_manager, mock_chatmemory, mock_postgres_manager
+        self, mock_chatmemory, mock_postgres_manager
     ):
         """ヘルスチェックエンドポイントのテスト"""
         # モックの設定
@@ -200,12 +182,8 @@ class TestAppEndpoints:
         mock_cm_instance.get_router.return_value = APIRouter()
         mock_chatmemory.return_value = mock_cm_instance
 
-        mock_reminder_instance = Mock()
-        mock_reminder_instance.get_router.return_value = APIRouter()
-        mock_reminder_instance.scheduler_running = True
-        mock_reminder_manager.return_value = mock_reminder_instance
 
-        app, _, _, _, _ = create_app()
+        app, _, _, _ = create_app()
         client = TestClient(app)
 
         response = client.get("/health")
@@ -215,15 +193,13 @@ class TestAppEndpoints:
         assert data["status"] == "healthy"
         assert "timestamp" in data
         assert data["services"]["chatmemory"] == "running"
-        assert data["services"]["reminder_scheduler"] == "running"
         assert data["services"]["database"] == "running"
 
     @patch("main.PostgresManager")
     @patch("main.LiteLLMChatMemory")
-    @patch("main.ReminderManager")
     @patch.dict(os.environ, {"OPENAI_API_KEY": "test-api-key"})
     def test_control_endpoint_shutdown(
-        self, mock_reminder_manager, mock_chatmemory, mock_postgres_manager
+        self, mock_chatmemory, mock_postgres_manager
     ):
         """制御エンドポイントのシャットダウンコマンドテスト"""
         # モックの設定
@@ -234,12 +210,8 @@ class TestAppEndpoints:
         mock_cm_instance.get_router.return_value = APIRouter()
         mock_chatmemory.return_value = mock_cm_instance
 
-        mock_reminder_instance = Mock()
-        mock_reminder_instance.get_router.return_value = APIRouter()
-        mock_reminder_instance.scheduler_running = True
-        mock_reminder_manager.return_value = mock_reminder_instance
 
-        app, _, _, shutdown_event, _ = create_app()
+        app, _, _, shutdown_event = create_app()
         client = TestClient(app)
 
         response = client.post("/api/control", json={"command": "shutdown"})
@@ -257,10 +229,9 @@ class TestAppEndpoints:
 
     @patch("main.PostgresManager")
     @patch("main.LiteLLMChatMemory")
-    @patch("main.ReminderManager")
     @patch.dict(os.environ, {"OPENAI_API_KEY": "test-api-key"})
     def test_control_endpoint_unknown_command(
-        self, mock_reminder_manager, mock_chatmemory, mock_postgres_manager
+        self, mock_chatmemory, mock_postgres_manager
     ):
         """制御エンドポイントの不明なコマンドテスト"""
         # モックの設定
@@ -271,12 +242,8 @@ class TestAppEndpoints:
         mock_cm_instance.get_router.return_value = APIRouter()
         mock_chatmemory.return_value = mock_cm_instance
 
-        mock_reminder_instance = Mock()
-        mock_reminder_instance.get_router.return_value = APIRouter()
-        mock_reminder_instance.scheduler_running = True
-        mock_reminder_manager.return_value = mock_reminder_instance
 
-        app, _, _, _, _ = create_app()
+        app, _, _, _ = create_app()
         client = TestClient(app)
 
         response = client.post("/api/control", json={"command": "unknown"})
@@ -288,10 +255,9 @@ class TestAppEndpoints:
 
     @patch("main.PostgresManager")
     @patch("main.LiteLLMChatMemory") 
-    @patch("main.ReminderManager")
     @patch("main.run_migration")
     def test_create_app_migration_success(
-        self, mock_run_migration, mock_reminder_manager, mock_chatmemory, mock_postgres_manager
+        self, mock_run_migration, mock_chatmemory, mock_postgres_manager
     ):
         """マイグレーション成功のテスト"""
         # モックの設定
@@ -302,10 +268,6 @@ class TestAppEndpoints:
         mock_cm_instance.get_router.return_value = APIRouter()
         mock_chatmemory.return_value = mock_cm_instance
 
-        mock_reminder_instance = Mock()
-        mock_reminder_instance.get_router.return_value = APIRouter()
-        mock_reminder_instance.scheduler_running = True
-        mock_reminder_manager.return_value = mock_reminder_instance
 
         # マイグレーションが成功する設定
         mock_run_migration.return_value = True
@@ -321,17 +283,16 @@ class TestAppEndpoints:
                 mock_get_loop.return_value = mock_loop
                 mock_loop.is_closed.return_value = False
                 
-                app, _, _, _, _ = create_app()
+                app, _, _, _ = create_app()
                 
                 # マイグレーションが実行されたことを確認
                 mock_run_migration.assert_called_once()
 
     @patch("main.PostgresManager")
     @patch("main.LiteLLMChatMemory")
-    @patch("main.ReminderManager")
     @patch("main.run_migration")
     def test_create_app_migration_error(
-        self, mock_run_migration, mock_reminder_manager, mock_chatmemory, mock_postgres_manager
+        self, mock_run_migration, mock_chatmemory, mock_postgres_manager
     ):
         """マイグレーションエラーのテスト"""
         # モックの設定
@@ -342,10 +303,6 @@ class TestAppEndpoints:
         mock_cm_instance.get_router.return_value = APIRouter()
         mock_chatmemory.return_value = mock_cm_instance
 
-        mock_reminder_instance = Mock()
-        mock_reminder_instance.get_router.return_value = APIRouter()
-        mock_reminder_instance.scheduler_running = True
-        mock_reminder_manager.return_value = mock_reminder_instance
 
         # マイグレーションでエラーが発生する設定
         mock_run_migration.side_effect = Exception("Migration error")
@@ -362,14 +319,13 @@ class TestAppEndpoints:
                 mock_loop.is_closed.return_value = False
                 
                 # エラーが発生してもアプリが作成されることを確認
-                app, _, _, _, _ = create_app()
+                app, _, _, _ = create_app()
                 assert app is not None
 
     @patch("main.PostgresManager")
     @patch("main.LiteLLMChatMemory")
-    @patch("main.ReminderManager")
     def test_create_app_no_user_id(
-        self, mock_reminder_manager, mock_chatmemory, mock_postgres_manager
+        self, mock_chatmemory, mock_postgres_manager
     ):
         """userIdなしでのアプリ作成テスト"""
         # モックの設定
@@ -380,10 +336,6 @@ class TestAppEndpoints:
         mock_cm_instance.get_router.return_value = APIRouter()
         mock_chatmemory.return_value = mock_cm_instance
 
-        mock_reminder_instance = Mock()
-        mock_reminder_instance.get_router.return_value = APIRouter()
-        mock_reminder_instance.scheduler_running = True
-        mock_reminder_manager.return_value = mock_reminder_instance
 
         config_data = {
             "characterList": [{"apiKey": "test-key"}],  # userIdなし
@@ -391,14 +343,13 @@ class TestAppEndpoints:
         }
         
         with patch("main.load_config", return_value=config_data):
-            app, _, _, _, _ = create_app()
+            app, _, _, _ = create_app()
             assert app is not None
 
     @patch("main.PostgresManager")
     @patch("main.LiteLLMChatMemory")
-    @patch("main.ReminderManager")
     def test_create_app_invalid_character_index(
-        self, mock_reminder_manager, mock_chatmemory, mock_postgres_manager
+        self, mock_chatmemory, mock_postgres_manager
     ):
         """無効なキャラクターインデックスのテスト"""
         # モックの設定
@@ -409,10 +360,6 @@ class TestAppEndpoints:
         mock_cm_instance.get_router.return_value = APIRouter()
         mock_chatmemory.return_value = mock_cm_instance
 
-        mock_reminder_instance = Mock()
-        mock_reminder_instance.get_router.return_value = APIRouter()
-        mock_reminder_instance.scheduler_running = True
-        mock_reminder_manager.return_value = mock_reminder_instance
 
         config_data = {
             "characterList": [{"userId": "test_user", "apiKey": "test-key"}],
@@ -421,14 +368,13 @@ class TestAppEndpoints:
         
         with patch("main.load_config", return_value=config_data):
             with patch.dict(os.environ, {"OPENAI_API_KEY": "test-api-key"}):
-                app, _, _, _, _ = create_app()
+                app, _, _, _ = create_app()
                 assert app is not None
 
     @patch("main.PostgresManager")
     @patch("main.LiteLLMChatMemory")
-    @patch("main.ReminderManager")
     def test_health_endpoint_scheduler_stopped(
-        self, mock_reminder_manager, mock_chatmemory, mock_postgres_manager
+        self, mock_chatmemory, mock_postgres_manager
     ):
         """リマインダースケジューラー停止時のヘルスチェックテスト"""
         # モックの設定
@@ -439,27 +385,21 @@ class TestAppEndpoints:
         mock_cm_instance.get_router.return_value = APIRouter()
         mock_chatmemory.return_value = mock_cm_instance
 
-        mock_reminder_instance = Mock()
-        mock_reminder_instance.get_router.return_value = APIRouter()
-        mock_reminder_instance.scheduler_running = False  # 停止状態
-        mock_reminder_manager.return_value = mock_reminder_instance
 
         with patch.dict(os.environ, {"OPENAI_API_KEY": "test-api-key"}):
-            app, _, _, _, _ = create_app()
+            app, _, _, _ = create_app()
             client = TestClient(app)
 
             response = client.get("/health")
 
             assert response.status_code == 200
             data = response.json()
-            assert data["services"]["reminder_scheduler"] == "stopped"
 
     @patch("main.PostgresManager")
     @patch("main.LiteLLMChatMemory")
-    @patch("main.ReminderManager")
     @patch.dict(os.environ, {"OPENAI_API_KEY": "test-api-key"})
     def test_control_endpoint_unknown_command(
-        self, mock_reminder_manager, mock_chatmemory, mock_postgres_manager
+        self, mock_chatmemory, mock_postgres_manager
     ):
         """制御エンドポイントの不明なコマンドテスト"""
         # モックの設定
@@ -470,12 +410,8 @@ class TestAppEndpoints:
         mock_cm_instance.get_router.return_value = APIRouter()
         mock_chatmemory.return_value = mock_cm_instance
 
-        mock_reminder_instance = Mock()
-        mock_reminder_instance.get_router.return_value = APIRouter()
-        mock_reminder_instance.scheduler_running = True
-        mock_reminder_manager.return_value = mock_reminder_instance
 
-        app, _, _, _, _ = create_app()
+        app, _, _, _ = create_app()
         client = TestClient(app)
 
         response = client.post("/api/control", json={"command": "unknown"})
@@ -497,13 +433,11 @@ def test_main_function(mock_create_app, mock_server, mock_uvicorn_config):
     mock_app = Mock()
     mock_pg_manager = Mock()
     mock_shutdown_event = Mock()
-    mock_reminder_manager = Mock()
     mock_create_app.return_value = (
         mock_app,
         55602,
         mock_pg_manager,
         mock_shutdown_event,
-        mock_reminder_manager,
     )
 
     # Uvicornサーバーのモック設定

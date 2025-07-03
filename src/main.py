@@ -23,7 +23,11 @@ try:
     from .db_migration import run_migration
     from .litellm_chatmemory import LiteLLMChatMemory
     from .postgres_manager import PostgresManager, get_short_path_name
-    from .version_manager import initialize_version_management_async
+    from .version_manager import (
+        VersionManager,
+        compare_versions,
+        initialize_version_management_async,
+    )
 except ImportError:
     # 直接実行される場合
 
@@ -31,7 +35,11 @@ except ImportError:
     from db_migration import run_migration
     from litellm_chatmemory import LiteLLMChatMemory
     from postgres_manager import PostgresManager, get_short_path_name
-    from version_manager import initialize_version_management_async
+    from version_manager import (
+        VersionManager,
+        compare_versions,
+        initialize_version_management_async,
+    )
 
 # .envファイルから環境変数を読み込む
 load_dotenv()
@@ -131,7 +139,7 @@ def create_app(config_dir=None):
     # バージョン管理の初期化
     try:
         import asyncio
-        
+
         # 既存のイベントループを取得、なければ新規作成
         try:
             loop = asyncio.get_event_loop()
@@ -140,13 +148,11 @@ def create_app(config_dir=None):
         except RuntimeError:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-        
+
         version_initialized = loop.run_until_complete(
             initialize_version_management_async(
                 db_host="127.0.0.1",
                 db_port=postgres_port,
-                version="3.0.1",
-                description="CocoroMemory バージョン 3.0.1 - バージョン管理機能追加"
             )
         )
         if version_initialized:
@@ -157,33 +163,46 @@ def create_app(config_dir=None):
         logger.error(f"バージョン管理の初期化中にエラーが発生しました: {e}")
         # バージョン管理エラーは致命的でないため続行
 
-    # データベースマイグレーションを実行（非同期処理）
+    # データベースマイグレーションを実行（バージョン管理テーブルの有無で判定）
     if current_user_id:
         try:
-            import asyncio
+            # バージョン管理テーブルの存在を確認
+            vm = VersionManager(db_host="127.0.0.1", db_port=postgres_port)
 
-            # 既存のイベントループを取得、なければ新規作成
-            try:
-                loop = asyncio.get_event_loop()
-                if loop.is_closed():
-                    raise RuntimeError("Event loop is closed")
-            except RuntimeError:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-
-            migration_executed = loop.run_until_complete(
-                run_migration(
-                    db_host="127.0.0.1",
-                    db_port=postgres_port,
-                    current_user_id=current_user_id,
-                )
-            )
-            if migration_executed:
-                logger.info("データベースマイグレーションが完了しました。")
+            if not vm.table_exists():
+                logger.info("バージョン管理テーブルが存在しないため、マイグレーションを実行します")
+                should_migrate = True
             else:
-                logger.info("マイグレーションは不要でした（リマインダーテーブルが既に存在）。")
+                logger.info(
+                    "バージョン管理テーブルが既に存在するため、マイグレーションをスキップします"
+                )
+                should_migrate = False
+
+            if should_migrate:
+                import asyncio
+
+                # 既存のイベントループを取得、なければ新規作成
+                try:
+                    loop = asyncio.get_event_loop()
+                    if loop.is_closed():
+                        raise RuntimeError("Event loop is closed")
+                except RuntimeError:
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+
+                migration_executed = loop.run_until_complete(
+                    run_migration(
+                        db_host="127.0.0.1",
+                        db_port=postgres_port,
+                        current_user_id=current_user_id,
+                    )
+                )
+                if migration_executed:
+                    logger.info("データベースマイグレーションが完了しました。")
+                else:
+                    logger.info("マイグレーション処理は成功しましたが、既に適用済みでした。")
         except Exception as e:
-            logger.error(f"マイグレーション実行中にエラーが発生しました: {e}")
+            logger.error(f"マイグレーション処理中にエラーが発生しました: {e}")
             # マイグレーションエラーは致命的でないため続行
     else:
         logger.info("current_user_idが設定されていないため、マイグレーションをスキップします。")
@@ -228,6 +247,25 @@ def create_app(config_dir=None):
             return {"status": "success", "message": "Shutdown initiated"}
         else:
             return {"status": "error", "message": f"Unknown command: {command}"}
+
+    # ヘルスチェックエンドポイントを追加
+    @app.get("/health")
+    async def health_check():
+        """ヘルスチェックエンドポイント
+        
+        Returns:
+            dict: サービスの状態
+        """
+        from datetime import datetime
+        
+        return {
+            "status": "healthy",
+            "timestamp": datetime.now().isoformat(),
+            "services": {
+                "database": "running",
+                "chatmemory": "running"
+            }
+        }
 
     return app, memory_port, pg_manager, shutdown_event
 

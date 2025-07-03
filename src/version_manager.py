@@ -14,7 +14,45 @@ from psycopg2.extras import RealDictCursor
 logger = logging.getLogger(__name__)
 
 # 現在のアプリケーションバージョン
-CURRENT_VERSION = "3.0.1"
+CURRENT_VERSION = "3.1.1"
+
+
+def compare_versions(version1: str, version2: str) -> int:
+    """
+    バージョン文字列を比較する
+
+    Args:
+        version1: 比較対象のバージョン1
+        version2: 比較対象のバージョン2
+
+    Returns:
+        int: version1 > version2 なら 1
+             version1 < version2 なら -1
+             version1 == version2 なら 0
+    """
+
+    def version_to_tuple(v: str) -> tuple:
+        """バージョン文字列をタプルに変換"""
+        return tuple(map(int, v.split(".")))
+
+    try:
+        v1_tuple = version_to_tuple(version1)
+        v2_tuple = version_to_tuple(version2)
+
+        if v1_tuple > v2_tuple:
+            return 1
+        elif v1_tuple < v2_tuple:
+            return -1
+        else:
+            return 0
+    except (ValueError, AttributeError):
+        # バージョン形式が不正な場合は文字列として比較
+        if version1 > version2:
+            return 1
+        elif version1 < version2:
+            return -1
+        else:
+            return 0
 
 
 class VersionManager:
@@ -33,6 +71,24 @@ class VersionManager:
         self.db_name = "postgres"
         self.db_user = "postgres"
         self.db_password = "postgres"  # noqa: S105
+
+    def table_exists(self) -> bool:
+        """バージョン管理テーブルが存在するかチェック"""
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute("""
+                        SELECT EXISTS (
+                            SELECT FROM information_schema.tables 
+                            WHERE table_schema = 'public' 
+                            AND table_name = 'app_versions'
+                        )
+                    """)
+                    result = cursor.fetchone()
+                    return result[0] if result else False
+        except psycopg2.Error as e:
+            logger.error(f"テーブル存在チェックに失敗しました: {e}")
+            return False
 
     def _get_connection(self):
         """データベース接続を取得"""
@@ -59,18 +115,18 @@ class VersionManager:
                             UNIQUE(version)
                         )
                     """)
-                    
+
                     # インデックスを作成
                     cursor.execute("""
                         CREATE INDEX IF NOT EXISTS idx_app_versions_version 
                         ON app_versions(version)
                     """)
-                    
+
                     cursor.execute("""
                         CREATE INDEX IF NOT EXISTS idx_app_versions_applied_at 
                         ON app_versions(applied_at)
                     """)
-                    
+
                     conn.commit()
                     logger.info("バージョン管理テーブルが作成されました")
 
@@ -101,17 +157,17 @@ class VersionManager:
             with self._get_connection() as conn:
                 with conn.cursor() as cursor:
                     cursor.execute(
-                        "SELECT COUNT(*) FROM app_versions WHERE version = %s",
-                        (version,)
+                        "SELECT COUNT(*) FROM app_versions WHERE version = %s", (version,)
                     )
-                    count = cursor.fetchone()[0]
+                    result = cursor.fetchone()
+                    count = result[0] if result else 0
                     return count > 0
 
         except psycopg2.Error as e:
             logger.error(f"バージョン存在チェックに失敗しました: {e}")
             return False
 
-    def record_version(self, version: str, description: str = None):
+    def record_version(self, version: str, description: str | None = None):
         """新しいバージョンをデータベースに記録"""
         try:
             # 既に記録されているかチェック
@@ -121,11 +177,14 @@ class VersionManager:
 
             with self._get_connection() as conn:
                 with conn.cursor() as cursor:
-                    cursor.execute("""
+                    cursor.execute(
+                        """
                         INSERT INTO app_versions (version, description)
                         VALUES (%s, %s)
-                    """, (version, description))
-                    
+                    """,
+                        (version, description),
+                    )
+
                     conn.commit()
                     logger.info(f"バージョン {version} が記録されました")
                     return True
@@ -139,23 +198,28 @@ class VersionManager:
         try:
             with self._get_connection() as conn:
                 with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-                    cursor.execute("""
+                    cursor.execute(
+                        """
                         SELECT version, applied_at, description
                         FROM app_versions 
                         ORDER BY applied_at DESC, id DESC
                         LIMIT %s
-                    """, (limit,))
-                    
+                    """,
+                        (limit,),
+                    )
+
                     return [dict(row) for row in cursor.fetchall()]
 
         except psycopg2.Error as e:
             logger.error(f"バージョン履歴取得に失敗しました: {e}")
             return []
 
-    def initialize_version_management(self, version: str = None, description: str = None):
+    def initialize_version_management(
+        self, version: str | None = None, description: str | None = None
+    ):
         """
         バージョン管理の初期化処理
-        
+
         Args:
             version: 記録するバージョン（デフォルトはCURRENT_VERSION）
             description: バージョンの説明
@@ -169,14 +233,14 @@ class VersionManager:
         try:
             # バージョン管理テーブルを作成
             self.create_version_table()
-            
+
             # 現在のバージョンを記録
             self.record_version(version, description)
-            
+
             # 現在のDBバージョンをログ出力
             current_db_version = self.get_current_db_version()
             logger.info(f"データベースの現在のバージョン: {current_db_version}")
-            
+
             return True
 
         except Exception as e:
@@ -185,28 +249,28 @@ class VersionManager:
 
 
 async def initialize_version_management_async(
-    db_host: str = "127.0.0.1", 
+    db_host: str = "127.0.0.1",
     db_port: int = 5432,
-    version: str = None,
-    description: str = None
+    version: str | None = None,
+    description: str | None = None,
 ) -> bool:
     """
     非同期バージョン管理初期化処理
-    
+
     Args:
         db_host: データベースホスト
         db_port: データベースポート
         version: 記録するバージョン
         description: バージョンの説明
-        
+
     Returns:
         bool: 初期化成功フラグ
     """
-    
+
     def sync_initialize():
         vm = VersionManager(db_host=db_host, db_port=db_port)
         return vm.initialize_version_management(version=version, description=description)
-    
+
     # 別スレッドで同期処理を実行
     loop = asyncio.get_event_loop()
     return await loop.run_in_executor(None, sync_initialize)

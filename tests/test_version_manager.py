@@ -6,7 +6,33 @@ import asyncio
 import pytest
 from unittest.mock import patch, MagicMock
 
-from src.version_manager import VersionManager, initialize_version_management_async, CURRENT_VERSION
+from src.version_manager import VersionManager, initialize_version_management_async, CURRENT_VERSION, compare_versions
+
+
+class TestVersionComparison:
+    """バージョン比較関数のテスト"""
+
+    def test_compare_versions_equal(self):
+        """同じバージョンの比較"""
+        assert compare_versions("3.0.1", "3.0.1") == 0
+        assert compare_versions("1.0.0", "1.0.0") == 0
+
+    def test_compare_versions_greater(self):
+        """大きいバージョンの比較"""
+        assert compare_versions("3.1.0", "3.0.1") == 1
+        assert compare_versions("3.0.2", "3.0.1") == 1
+        assert compare_versions("4.0.0", "3.9.9") == 1
+
+    def test_compare_versions_lesser(self):
+        """小さいバージョンの比較"""
+        assert compare_versions("3.0.1", "3.1.0") == -1
+        assert compare_versions("3.0.1", "3.0.2") == -1
+        assert compare_versions("2.9.9", "3.0.0") == -1
+
+    def test_compare_versions_different_length(self):
+        """異なる長さのバージョン比較"""
+        assert compare_versions("3.0", "3.0.0") == -1
+        assert compare_versions("3.0.0", "3.0") == 1
 
 
 class TestVersionManager:
@@ -16,6 +42,39 @@ class TestVersionManager:
     def version_manager(self):
         """VersionManagerインスタンスを作成"""
         return VersionManager(db_host="localhost", db_port=5433)
+
+    @patch('src.version_manager.psycopg2.connect')
+    def test_table_exists_true(self, mock_connect, version_manager):
+        """バージョン管理テーブルが存在する場合のテスト"""
+        # モックの設定
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_connect.return_value.__enter__.return_value = mock_conn
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+        mock_cursor.fetchone.return_value = [True]
+
+        # テスト実行
+        result = version_manager.table_exists()
+
+        # 検証
+        assert result is True
+        mock_cursor.execute.assert_called_once()
+
+    @patch('src.version_manager.psycopg2.connect')
+    def test_table_exists_false(self, mock_connect, version_manager):
+        """バージョン管理テーブルが存在しない場合のテスト"""
+        # モックの設定
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_connect.return_value.__enter__.return_value = mock_conn
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+        mock_cursor.fetchone.return_value = [False]
+
+        # テスト実行
+        result = version_manager.table_exists()
+
+        # 検証
+        assert result is False
 
     @patch('src.version_manager.psycopg2.connect')
     def test_create_version_table(self, mock_connect, version_manager):

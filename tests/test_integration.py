@@ -41,23 +41,20 @@ class TestIntegration:
 
     @patch("main.PostgresManager")
     @patch("main.LiteLLMChatMemory")
-    @patch("main.ReminderManager")
     def test_full_application_creation(
-        self, mock_reminder_manager, mock_chatmemory, mock_postgres_manager
+        self, mock_chatmemory, mock_postgres_manager
     ):
         """アプリケーション全体の作成をテスト"""
         # モックの設定
         mock_pg_instance = self._setup_postgres_mock(mock_postgres_manager)
         self._setup_chatmemory_mock(mock_chatmemory)
-        mock_reminder_instance = self._setup_reminder_mock(mock_reminder_manager)
 
         # アプリケーションを作成
-        app, port, pg_manager, shutdown_event, reminder_manager = create_app(self.temp_dir)
+        app, port, pg_manager, shutdown_event = create_app(self.temp_dir)
 
         # 基本的な検証
         assert port == 55602
         assert pg_manager == mock_pg_instance
-        assert reminder_manager == mock_reminder_instance
 
         # PostgreSQLの初期化と起動が呼ばれることを確認
         mock_pg_instance.initialize_db.assert_called_once()
@@ -71,28 +68,18 @@ class TestIntegration:
         assert kwargs["embedded_api_key"] == "test-embed-key-for-integration"
         assert kwargs["db_port"] == 5432
 
-        # リマインダーマネージャーの設定確認
-        mock_reminder_manager.assert_called_once()
-        args, kwargs = mock_reminder_manager.call_args
-        assert kwargs["db_host"] == "127.0.0.1"
-        assert kwargs["db_port"] == 5432
-        assert kwargs["notification_port"] == 55604
-
     @patch("main.PostgresManager")
     @patch("main.LiteLLMChatMemory")
-    @patch("main.ReminderManager")
     def test_health_check_integration(
-        self, mock_reminder_manager, mock_chatmemory, mock_postgres_manager
+        self, mock_chatmemory, mock_postgres_manager
     ):
         """ヘルスチェックエンドポイントの統合テスト"""
         # モックの設定
         self._setup_postgres_mock(mock_postgres_manager)
         self._setup_chatmemory_mock(mock_chatmemory)
-        mock_reminder_instance = self._setup_reminder_mock(mock_reminder_manager)
-        mock_reminder_instance.scheduler_running = True
 
         # アプリケーションを作成
-        app, _, _, _, _ = create_app(self.temp_dir)
+        app, _, _, _ = create_app(self.temp_dir)
         client = TestClient(app)
 
         # ヘルスチェックを実行
@@ -106,23 +93,20 @@ class TestIntegration:
         assert "timestamp" in data
         assert isinstance(data["services"], dict)
         assert data["services"]["chatmemory"] == "running"
-        assert data["services"]["reminder_scheduler"] == "running"
         assert data["services"]["database"] == "running"
 
     @patch("main.PostgresManager")
     @patch("main.LiteLLMChatMemory")
-    @patch("main.ReminderManager")
     def test_control_endpoints_integration(
-        self, mock_reminder_manager, mock_chatmemory, mock_postgres_manager
+        self, mock_chatmemory, mock_postgres_manager
     ):
         """制御エンドポイントの統合テスト"""
         # モックの設定
         self._setup_postgres_mock(mock_postgres_manager)
         self._setup_chatmemory_mock(mock_chatmemory)
-        self._setup_reminder_mock(mock_reminder_manager)
 
         # アプリケーションを作成
-        app, _, _, shutdown_event, _ = create_app(self.temp_dir)
+        app, _, _, shutdown_event = create_app(self.temp_dir)
         client = TestClient(app)
 
         # 正常なシャットダウンコマンド
@@ -145,41 +129,33 @@ class TestIntegration:
 
     @patch("main.PostgresManager")
     @patch("main.LiteLLMChatMemory")
-    @patch("main.ReminderManager")
     def test_router_integration(
-        self, mock_reminder_manager, mock_chatmemory, mock_postgres_manager
+        self, mock_chatmemory, mock_postgres_manager
     ):
         """ルーターの統合をテスト"""
         # モックの設定
         self._setup_postgres_mock(mock_postgres_manager)
         mock_cm_instance = self._setup_chatmemory_mock(mock_chatmemory)
-        mock_reminder_instance = self._setup_reminder_mock(mock_reminder_manager)
 
         # アプリケーションを作成
-        app, _, _, _, _ = create_app(self.temp_dir)
+        app, _, _, _ = create_app(self.temp_dir)
 
         # ルーターが正しく追加されていることを確認
         mock_cm_instance.get_router.assert_called_once()
-        mock_reminder_instance.get_router.assert_called_once()
-
-        # リマインダースケジューラーが開始されることを確認
-        mock_reminder_instance.start_scheduler.assert_called_once()
 
     @patch("main.PostgresManager")
     @patch("main.LiteLLMChatMemory")
-    @patch("main.ReminderManager")
     @patch.dict(os.environ, {"OPENAI_API_KEY": "env-test-key"})
     def test_environment_variable_fallback_integration(
-        self, mock_reminder_manager, mock_chatmemory, mock_postgres_manager
+        self, mock_chatmemory, mock_postgres_manager
     ):
         """環境変数フォールバックの統合テスト"""
         # モックの設定
         self._setup_postgres_mock(mock_postgres_manager)
         self._setup_chatmemory_mock(mock_chatmemory)
-        self._setup_reminder_mock(mock_reminder_manager)
 
         # 設定ファイルが存在しない場合
-        app, port, _, _, _ = create_app("/nonexistent/path")
+        app, port, _, _ = create_app("/nonexistent/path")
 
         # デフォルト値が使用されることを確認
         assert port == 55602
@@ -192,9 +168,8 @@ class TestIntegration:
 
     @patch("main.PostgresManager")
     @patch("main.LiteLLMChatMemory")
-    @patch("main.ReminderManager")
     def test_error_handling_integration(
-        self, mock_reminder_manager, mock_chatmemory, mock_postgres_manager
+        self, mock_chatmemory, mock_postgres_manager
     ):
         """エラーハンドリングの統合テスト"""
         # PostgreSQLマネージャーが例外を発生させる場合
@@ -220,17 +195,6 @@ class TestIntegration:
         mock_cm_instance.get_router.return_value = mock_router
         return mock_cm_instance
 
-    def _setup_reminder_mock(self, mock_reminder_manager):
-        """ReminderManagerのモックを設定"""
-        from fastapi import APIRouter
-
-        mock_reminder_instance = mock_reminder_manager.return_value
-        mock_router = APIRouter()
-        mock_reminder_instance.get_router.return_value = mock_router
-        mock_reminder_instance.start_scheduler.return_value = None
-        mock_reminder_instance.stop_scheduler.return_value = None
-        mock_reminder_instance.scheduler_running = True
-        return mock_reminder_instance
 
 
 class TestEndToEndFlow:
@@ -242,9 +206,8 @@ class TestEndToEndFlow:
 
     @patch("main.PostgresManager")
     @patch("main.LiteLLMChatMemory")
-    @patch("main.ReminderManager")
     def test_application_lifecycle(
-        self, mock_reminder_manager, mock_chatmemory, mock_postgres_manager
+        self, mock_chatmemory, mock_postgres_manager
     ):
         """アプリケーションのライフサイクルをテスト"""
         # モックの設定
@@ -258,27 +221,19 @@ class TestEndToEndFlow:
 
         mock_cm_instance.get_router.return_value = APIRouter()
 
-        mock_reminder_instance = mock_reminder_manager.return_value
-        mock_reminder_instance.get_router.return_value = APIRouter()
-        mock_reminder_instance.start_scheduler.return_value = None
-        mock_reminder_instance.stop_scheduler.return_value = None
-        mock_reminder_instance.scheduler_running = True
-
         # 環境変数を設定
         with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
             # 1. アプリケーション作成
-            app, port, pg_manager, shutdown_event, reminder_manager = create_app()
+            app, port, pg_manager, shutdown_event = create_app()
 
             # 2. アプリケーションが正常に作成されたことを確認
             assert app is not None
             assert port == 55602
             assert pg_manager == mock_pg_instance
-            assert reminder_manager == mock_reminder_instance
 
             # 3. 必要なサービスが開始されたことを確認
             mock_pg_instance.initialize_db.assert_called_once()
             mock_pg_instance.start_server.assert_called_once()
-            mock_reminder_instance.start_scheduler.assert_called_once()
 
             # 4. ヘルスチェックが正常に動作することを確認
             client = TestClient(app)
@@ -295,9 +250,8 @@ class TestEndToEndFlow:
 
     @patch("main.PostgresManager")
     @patch("main.LiteLLMChatMemory")
-    @patch("main.ReminderManager")
     def test_configuration_flow(
-        self, mock_reminder_manager, mock_chatmemory, mock_postgres_manager
+        self, mock_chatmemory, mock_postgres_manager
     ):
         """設定の読み込みから適用までのフローをテスト"""
         # カスタム設定を作成
@@ -330,13 +284,8 @@ class TestEndToEndFlow:
 
         mock_cm_instance.get_router.return_value = APIRouter()
 
-        mock_reminder_instance = mock_reminder_manager.return_value
-        mock_reminder_instance.get_router.return_value = APIRouter()
-        mock_reminder_instance.start_scheduler.return_value = None
-        mock_reminder_instance.scheduler_running = True
-
         # アプリケーションを作成
-        app, port, pg_manager, _, reminder_manager = create_app(self.temp_dir)
+        app, port, pg_manager, _ = create_app(self.temp_dir)
 
         # カスタム設定が正しく適用されたことを確認
         assert port == 55603
@@ -352,9 +301,3 @@ class TestEndToEndFlow:
         assert kwargs["embedded_api_key"] == "custom-embed-key"
         assert kwargs["embedded_model"] == "openai/text-embedding-ada-002"
         assert kwargs["db_port"] == 5434
-
-        # ReminderManagerが正しい設定で作成されたことを確認
-        mock_reminder_manager.assert_called_once()
-        args, kwargs = mock_reminder_manager.call_args
-        assert kwargs["db_port"] == 5434
-        assert kwargs["notification_port"] == 55605
