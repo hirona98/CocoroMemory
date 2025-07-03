@@ -95,6 +95,8 @@ a = Analysis(
         'pydantic', 'pydantic.main', 'pydantic.fields', 'pydantic.validators',
         # chatmemory関連
         'chatmemory', 'chatmemory.llms', 'chatmemory.memory',
+        # バージョン管理関連
+        'src.version_manager',
         # dotenv関連
         'dotenv', 'dotenv.main',
         # pathlib関連（Python 3.10+での問題対策）

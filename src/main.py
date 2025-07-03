@@ -23,6 +23,7 @@ try:
     from .db_migration import run_migration
     from .litellm_chatmemory import LiteLLMChatMemory
     from .postgres_manager import PostgresManager, get_short_path_name
+    from .version_manager import initialize_version_management_async
 except ImportError:
     # 直接実行される場合
 
@@ -30,6 +31,7 @@ except ImportError:
     from db_migration import run_migration
     from litellm_chatmemory import LiteLLMChatMemory
     from postgres_manager import PostgresManager, get_short_path_name
+    from version_manager import initialize_version_management_async
 
 # .envファイルから環境変数を読み込む
 load_dotenv()
@@ -125,6 +127,35 @@ def create_app(config_dir=None):
     pg_manager = PostgresManager(port=postgres_port)
     pg_manager.initialize_db()
     pg_manager.start_server()
+
+    # バージョン管理の初期化
+    try:
+        import asyncio
+        
+        # 既存のイベントループを取得、なければ新規作成
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_closed():
+                raise RuntimeError("Event loop is closed")
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        
+        version_initialized = loop.run_until_complete(
+            initialize_version_management_async(
+                db_host="127.0.0.1",
+                db_port=postgres_port,
+                version="3.0.1",
+                description="CocoroMemory バージョン 3.0.1 - バージョン管理機能追加"
+            )
+        )
+        if version_initialized:
+            logger.info("バージョン管理が初期化されました")
+        else:
+            logger.warning("バージョン管理の初期化に失敗しました")
+    except Exception as e:
+        logger.error(f"バージョン管理の初期化中にエラーが発生しました: {e}")
+        # バージョン管理エラーは致命的でないため続行
 
     # データベースマイグレーションを実行（非同期処理）
     if current_user_id:
