@@ -19,6 +19,7 @@ try:
     import psycopg2.extensions
     import psycopg2.extras
     import psycopg2._psycopg
+    import asyncpg  # マイグレーション用
 except ImportError:
     pass
 

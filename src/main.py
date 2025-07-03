@@ -21,12 +21,14 @@ except ImportError:
 try:
     # パッケージとして実行される場合（pytest等）
     from .config_loader import load_config
+    from .db_migration import run_migration
     from .litellm_chatmemory import LiteLLMChatMemory
     from .postgres_manager import PostgresManager, get_short_path_name
     from .reminder_manager import ReminderManager
 except ImportError:
     # 直接実行される場合
     from config_loader import load_config
+    from db_migration import run_migration
     from litellm_chatmemory import LiteLLMChatMemory
     from postgres_manager import PostgresManager, get_short_path_name
     from reminder_manager import ReminderManager
@@ -92,6 +94,7 @@ def create_app(config_dir=None):
     current_char_index = config.get("currentCharacterIndex", 0)
 
     # 有効なキャラクターが存在するかチェック
+    current_user_id = None  # マイグレーション用のuser_id
     if not character_list or current_char_index >= len(character_list):
         # 設定ファイルが不完全な場合は環境変数から読み込む
         api_key = os.getenv("OPENAI_API_KEY")
@@ -107,6 +110,7 @@ def create_app(config_dir=None):
         postgres_port = 5432  # デフォルトのPostgreSQLポート
     else:
         current_char = character_list[current_char_index]
+        current_user_id = current_char.get("userId")  # 現在のキャラクターのuserIdを取得
         llm_api_key = current_char.get("apiKey")
         llm_model = current_char.get("llmModel", "openai/gpt-4o-mini")
         embedded_api_key = current_char.get(
@@ -123,6 +127,37 @@ def create_app(config_dir=None):
     pg_manager = PostgresManager(port=postgres_port)
     pg_manager.initialize_db()
     pg_manager.start_server()
+
+    # データベースマイグレーションを実行（非同期処理）
+    if current_user_id:
+        try:
+            import asyncio
+            
+            # 既存のイベントループを取得、なければ新規作成
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_closed():
+                    raise RuntimeError("Event loop is closed")
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+            
+            migration_executed = loop.run_until_complete(
+                run_migration(
+                    db_host="127.0.0.1",
+                    db_port=postgres_port,
+                    current_user_id=current_user_id,
+                )
+            )
+            if migration_executed:
+                logger.info("データベースマイグレーションが完了しました。")
+            else:
+                logger.info("マイグレーションは不要でした（リマインダーテーブルが既に存在）。")
+        except Exception as e:
+            logger.error(f"マイグレーション実行中にエラーが発生しました: {e}")
+            # マイグレーションエラーは致命的でないため続行
+    else:
+        logger.info("current_user_idが設定されていないため、マイグレーションをスキップします。")
 
     # LiteLLMChatMemory インスタンスを作成
     cm = LiteLLMChatMemory(
