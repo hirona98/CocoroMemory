@@ -1,23 +1,23 @@
-Write-Host "CocoroMemory ビルドを開始します..."
+Write-Host "Starting CocoroMemory build..."
 
-# 仮想環境を有効化
+# Activate virtual environment
 & .\.venv\Scripts\activate
 
 $src = "src/main.py"
 $spec = "CocoroMemory.spec"
 $datasEntry = "        ('pgsql/bin/*', 'pgsql/bin'),"
 
-# specファイルがなければエラー
+# Error if spec file doesn't exist
 if (-not (Test-Path $spec)) {
-    Write-Host "Error: $spec ファイルが見つかりません。" -ForegroundColor Red
-    Write-Host "最初に手動でspecファイルを作成する必要があります。" -ForegroundColor Red
+    Write-Host "Error: $spec file not found." -ForegroundColor Red
+    Write-Host "You need to create the spec file manually first." -ForegroundColor Red
     exit 1
 }
 
-# PyInstallerでパッケージングを実行（-yで確認プロンプトをスキップ）
+# Run PyInstaller packaging (skip confirmation prompts with -y)
 pyinstaller --clean -y $spec
 
-# データディレクトリの初期化スクリプトをコピー
+# Copy data directory initialization script
 if (-not (Test-Path "dist\CocoroMemory\Data")) {
     New-Item -Path "dist\CocoroMemory\Data" -ItemType Directory
 }
@@ -26,9 +26,9 @@ if (-not (Test-Path "dist\CocoroMemory\Logs")) {
     New-Item -Path "dist\CocoroMemory\Logs" -ItemType Directory
 }
 
-# 仮想環境を無効化
+# Deactivate virtual environment
 deactivate
 
 Write-Host ""
-Write-Host "ビルドが完了しました！"
-Write-Host "実行ファイルは dist\CocoroMemory フォルダにあります"
+Write-Host "Build completed successfully!"
+Write-Host "Executable file is located in the dist\CocoroMemory folder"
