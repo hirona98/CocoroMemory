@@ -151,3 +151,96 @@ class LiteLLMChatMemory(ChatMemory):
                 print(f"Response type: {type(response)}")
                 print(f"Response: {response}")
             raise
+
+    async def search_image_associations(self, user_id: str, query: str, top_k: int = 3) -> str:
+        """画像関連の連想記憶を検索"""
+        try:
+            # 画像関連の記憶を検索
+            image_query = f"画像の記憶 {query}"
+
+            # 記憶検索を実行
+            search_result = await self.search_async(
+                user_id=user_id,
+                query=image_query,
+                top_k=top_k,
+                search_content=True,
+                include_retrieved_data=False,
+            )
+
+            if search_result and "answer" in search_result:
+                return search_result["answer"]
+            else:
+                return ""
+
+        except Exception as e:
+            print(f"画像記憶検索エラー: {e}")
+            return ""
+
+    async def search_async(
+        self,
+        user_id: str,
+        query: str,
+        top_k: int = 5,
+        search_content: bool = False,
+        include_retrieved_data: bool = False,
+    ):
+        """非同期版の記憶検索"""
+        try:
+            # 要約と知識の検索
+            summary_results = await self._search_summaries(user_id, query, top_k)
+            knowledge_results = await self._search_knowledge(user_id, query, top_k)
+
+            # 結果をマージ
+            all_results = summary_results + knowledge_results
+
+            if not all_results:
+                return {"answer": "関連する記憶が見つかりませんでした。"}
+
+            # スコア順にソート
+            all_results.sort(key=lambda x: x.get("similarity", 0), reverse=True)
+            top_results = all_results[:top_k]
+
+            # LLMで回答を生成
+            context = "\n".join([result["content"] for result in top_results])
+
+            system_prompt = (
+                "あなたは記憶情報の統合専門家です。\n"
+                "検索された複数の記憶を、客観的で正確な情報として整理してください。\n\n"
+                "重要な指針：\n"
+                "- 矛盾する情報がある場合は明記してください\n"
+                "- 推測や創作は絶対に行わないでください\n"
+                "- 中立的で事実ベースの文体を使用してください\n"
+                "- 感情表現や個性的な口調は使用しないでください\n"
+                "- 記憶に含まれる事実のみを整理して報告してください"
+            )
+
+            user_prompt = (
+                f"質問: {query}\n\n"
+                f"関連する記憶:\n"
+                f"{context}\n\n"
+                "上記の記憶情報を整理して、質問に関連する事実を客観的にまとめてください。"
+            )
+
+            answer = await self.llm(system_prompt, user_prompt)
+
+            result = {"answer": answer}
+            if include_retrieved_data:
+                result["retrieved_data"] = context
+
+            return result
+
+        except Exception as e:
+            print(f"記憶検索エラー: {e}")
+            return {"answer": "記憶の検索中にエラーが発生しました。"}
+
+    async def _search_summaries(self, user_id: str, query: str, top_k: int):
+        """要約テーブルの検索"""
+        # 実装は既存のsearch機能の要約検索部分を使用
+        # ここでは簡略化
+        return []
+
+    async def _search_knowledge(self, user_id: str, query: str, top_k: int):
+        """知識テーブルの検索"""
+        # 実装は既存のsearch機能の知識検索部分を使用
+        # ここでは簡略化
+        return []

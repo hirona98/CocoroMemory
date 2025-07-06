@@ -252,19 +252,16 @@ def create_app(config_dir=None):
     @app.get("/health")
     async def health_check():
         """ヘルスチェックエンドポイント
-        
+
         Returns:
             dict: サービスの状態
         """
         from datetime import datetime
-        
+
         return {
             "status": "healthy",
             "timestamp": datetime.now().isoformat(),
-            "services": {
-                "database": "running",
-                "chatmemory": "running"
-            }
+            "services": {"database": "running", "chatmemory": "running"},
         }
 
     return app, memory_port, pg_manager, shutdown_event
