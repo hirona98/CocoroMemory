@@ -22,7 +22,9 @@ class TestCreateApp:
 
     @patch("main.PostgresManager")
     @patch("main.LiteLLMChatMemory")
-    def test_create_app_with_config_file(self, mock_chatmemory, mock_postgres_manager):
+    def test_create_app_with_config_file(
+        self, mock_chatmemory, mock_postgres_manager
+    ):
         """設定ファイルが存在する場合のアプリ作成をテスト"""
         # モックの設定
         mock_pg_instance = Mock()
@@ -31,6 +33,7 @@ class TestCreateApp:
         mock_cm_instance = Mock()
         mock_cm_instance.get_router.return_value = APIRouter()
         mock_chatmemory.return_value = mock_cm_instance
+
 
         # 設定ファイルを作成
         config = {
@@ -65,7 +68,9 @@ class TestCreateApp:
     @patch("main.PostgresManager")
     @patch("main.LiteLLMChatMemory")
     @patch.dict(os.environ, {"OPENAI_API_KEY": "env-api-key"})
-    def test_create_app_without_config_file(self, mock_chatmemory, mock_postgres_manager):
+    def test_create_app_without_config_file(
+        self, mock_chatmemory, mock_postgres_manager
+    ):
         """設定ファイルが存在しない場合のアプリ作成をテスト"""
         # モックの設定
         mock_pg_instance = Mock()
@@ -74,6 +79,7 @@ class TestCreateApp:
         mock_cm_instance = Mock()
         mock_cm_instance.get_router.return_value = APIRouter()
         mock_chatmemory.return_value = mock_cm_instance
+
 
         # 存在しないディレクトリを指定
         app, port, pg_manager, shutdown_event = create_app("/nonexistent/path")
@@ -87,7 +93,9 @@ class TestCreateApp:
 
     @patch("main.PostgresManager")
     @patch("main.LiteLLMChatMemory")
-    def test_create_app_missing_api_key(self, mock_chatmemory, mock_postgres_manager):
+    def test_create_app_missing_api_key(
+        self, mock_chatmemory, mock_postgres_manager
+    ):
         """APIキーが設定されていない場合のエラーをテスト"""
         with patch.dict(os.environ, {}, clear=True):
             with pytest.raises(ValueError, match="OPENAI_API_KEY環境変数も設定されていません"):
@@ -95,7 +103,9 @@ class TestCreateApp:
 
     @patch("main.PostgresManager")
     @patch("main.LiteLLMChatMemory")
-    def test_create_app_invalid_character_index(self, mock_chatmemory, mock_postgres_manager):
+    def test_create_app_invalid_character_index(
+        self, mock_chatmemory, mock_postgres_manager
+    ):
         """無効なキャラクターインデックスの場合のテスト"""
         # モックの設定
         mock_pg_instance = Mock()
@@ -104,6 +114,7 @@ class TestCreateApp:
         mock_cm_instance = Mock()
         mock_cm_instance.get_router.return_value = APIRouter()
         mock_chatmemory.return_value = mock_cm_instance
+
 
         # 無効なインデックスを持つ設定ファイルを作成
         config = {
@@ -124,7 +135,9 @@ class TestCreateApp:
 
     @patch("main.PostgresManager")
     @patch("main.LiteLLMChatMemory")
-    def test_create_app_missing_api_key_in_config(self, mock_chatmemory, mock_postgres_manager):
+    def test_create_app_missing_api_key_in_config(
+        self, mock_chatmemory, mock_postgres_manager
+    ):
         """設定ファイルにAPIキーがない場合のエラーをテスト"""
         # APIキーが設定されていない設定ファイルを作成
         config = {
@@ -157,7 +170,9 @@ class TestAppEndpoints:
     @patch("main.PostgresManager")
     @patch("main.LiteLLMChatMemory")
     @patch.dict(os.environ, {"OPENAI_API_KEY": "test-api-key"})
-    def test_health_check_endpoint(self, mock_chatmemory, mock_postgres_manager):
+    def test_health_check_endpoint(
+        self, mock_chatmemory, mock_postgres_manager
+    ):
         """ヘルスチェックエンドポイントのテスト"""
         # モックの設定
         mock_pg_instance = Mock()
@@ -166,6 +181,7 @@ class TestAppEndpoints:
         mock_cm_instance = Mock()
         mock_cm_instance.get_router.return_value = APIRouter()
         mock_chatmemory.return_value = mock_cm_instance
+
 
         app, _, _, _ = create_app()
         client = TestClient(app)
@@ -182,7 +198,9 @@ class TestAppEndpoints:
     @patch("main.PostgresManager")
     @patch("main.LiteLLMChatMemory")
     @patch.dict(os.environ, {"OPENAI_API_KEY": "test-api-key"})
-    def test_control_endpoint_shutdown(self, mock_chatmemory, mock_postgres_manager):
+    def test_control_endpoint_shutdown(
+        self, mock_chatmemory, mock_postgres_manager
+    ):
         """制御エンドポイントのシャットダウンコマンドテスト"""
         # モックの設定
         mock_pg_instance = Mock()
@@ -191,6 +209,7 @@ class TestAppEndpoints:
         mock_cm_instance = Mock()
         mock_cm_instance.get_router.return_value = APIRouter()
         mock_chatmemory.return_value = mock_cm_instance
+
 
         app, _, _, shutdown_event = create_app()
         client = TestClient(app)
@@ -211,7 +230,9 @@ class TestAppEndpoints:
     @patch("main.PostgresManager")
     @patch("main.LiteLLMChatMemory")
     @patch.dict(os.environ, {"OPENAI_API_KEY": "test-api-key"})
-    def test_control_endpoint_unknown_command(self, mock_chatmemory, mock_postgres_manager):
+    def test_control_endpoint_unknown_command(
+        self, mock_chatmemory, mock_postgres_manager
+    ):
         """制御エンドポイントの不明なコマンドテスト"""
         # モックの設定
         mock_pg_instance = Mock()
@@ -220,6 +241,7 @@ class TestAppEndpoints:
         mock_cm_instance = Mock()
         mock_cm_instance.get_router.return_value = APIRouter()
         mock_chatmemory.return_value = mock_cm_instance
+
 
         app, _, _, _ = create_app()
         client = TestClient(app)
@@ -232,11 +254,10 @@ class TestAppEndpoints:
         assert "Unknown command" in data["message"]
 
     @patch("main.PostgresManager")
-    @patch("main.LiteLLMChatMemory")
+    @patch("main.LiteLLMChatMemory") 
     @patch("main.run_migration")
-    @patch("main.VersionManager")
     def test_create_app_migration_success(
-        self, mock_version_manager, mock_run_migration, mock_chatmemory, mock_postgres_manager
+        self, mock_run_migration, mock_chatmemory, mock_postgres_manager
     ):
         """マイグレーション成功のテスト"""
         # モックの設定
@@ -247,29 +268,23 @@ class TestAppEndpoints:
         mock_cm_instance.get_router.return_value = APIRouter()
         mock_chatmemory.return_value = mock_cm_instance
 
-        # VersionManagerのモック設定
-        mock_vm_instance = Mock()
-        mock_vm_instance.table_exists.return_value = (
-            False  # テーブルが存在しない = マイグレーション実行
-        )
-        mock_version_manager.return_value = mock_vm_instance
 
         # マイグレーションが成功する設定
         mock_run_migration.return_value = True
 
         config_data = {
             "characterList": [{"userId": "test_user", "apiKey": "test-key"}],
-            "currentCharacterIndex": 0,
+            "currentCharacterIndex": 0
         }
-
+        
         with patch("main.load_config", return_value=config_data):
             with patch("asyncio.get_event_loop") as mock_get_loop:
                 mock_loop = Mock()
                 mock_get_loop.return_value = mock_loop
                 mock_loop.is_closed.return_value = False
-
+                
                 app, _, _, _ = create_app()
-
+                
                 # マイグレーションが実行されたことを確認
                 mock_run_migration.assert_called_once()
 
@@ -288,27 +303,30 @@ class TestAppEndpoints:
         mock_cm_instance.get_router.return_value = APIRouter()
         mock_chatmemory.return_value = mock_cm_instance
 
+
         # マイグレーションでエラーが発生する設定
         mock_run_migration.side_effect = Exception("Migration error")
 
         config_data = {
             "characterList": [{"userId": "test_user", "apiKey": "test-key"}],
-            "currentCharacterIndex": 0,
+            "currentCharacterIndex": 0
         }
-
+        
         with patch("main.load_config", return_value=config_data):
             with patch("asyncio.get_event_loop") as mock_get_loop:
                 mock_loop = Mock()
                 mock_get_loop.return_value = mock_loop
                 mock_loop.is_closed.return_value = False
-
+                
                 # エラーが発生してもアプリが作成されることを確認
                 app, _, _, _ = create_app()
                 assert app is not None
 
     @patch("main.PostgresManager")
     @patch("main.LiteLLMChatMemory")
-    def test_create_app_no_user_id(self, mock_chatmemory, mock_postgres_manager):
+    def test_create_app_no_user_id(
+        self, mock_chatmemory, mock_postgres_manager
+    ):
         """userIdなしでのアプリ作成テスト"""
         # モックの設定
         mock_pg_instance = Mock()
@@ -318,18 +336,21 @@ class TestAppEndpoints:
         mock_cm_instance.get_router.return_value = APIRouter()
         mock_chatmemory.return_value = mock_cm_instance
 
+
         config_data = {
             "characterList": [{"apiKey": "test-key"}],  # userIdなし
-            "currentCharacterIndex": 0,
+            "currentCharacterIndex": 0
         }
-
+        
         with patch("main.load_config", return_value=config_data):
             app, _, _, _ = create_app()
             assert app is not None
 
     @patch("main.PostgresManager")
     @patch("main.LiteLLMChatMemory")
-    def test_create_app_invalid_character_index(self, mock_chatmemory, mock_postgres_manager):
+    def test_create_app_invalid_character_index(
+        self, mock_chatmemory, mock_postgres_manager
+    ):
         """無効なキャラクターインデックスのテスト"""
         # モックの設定
         mock_pg_instance = Mock()
@@ -339,11 +360,12 @@ class TestAppEndpoints:
         mock_cm_instance.get_router.return_value = APIRouter()
         mock_chatmemory.return_value = mock_cm_instance
 
+
         config_data = {
             "characterList": [{"userId": "test_user", "apiKey": "test-key"}],
-            "currentCharacterIndex": 5,  # 範囲外
+            "currentCharacterIndex": 5  # 範囲外
         }
-
+        
         with patch("main.load_config", return_value=config_data):
             with patch.dict(os.environ, {"OPENAI_API_KEY": "test-api-key"}):
                 app, _, _, _ = create_app()
@@ -351,7 +373,9 @@ class TestAppEndpoints:
 
     @patch("main.PostgresManager")
     @patch("main.LiteLLMChatMemory")
-    def test_health_endpoint_scheduler_stopped(self, mock_chatmemory, mock_postgres_manager):
+    def test_health_endpoint_scheduler_stopped(
+        self, mock_chatmemory, mock_postgres_manager
+    ):
         """リマインダースケジューラー停止時のヘルスチェックテスト"""
         # モックの設定
         mock_pg_instance = Mock()
@@ -360,6 +384,7 @@ class TestAppEndpoints:
         mock_cm_instance = Mock()
         mock_cm_instance.get_router.return_value = APIRouter()
         mock_chatmemory.return_value = mock_cm_instance
+
 
         with patch.dict(os.environ, {"OPENAI_API_KEY": "test-api-key"}):
             app, _, _, _ = create_app()
@@ -373,7 +398,9 @@ class TestAppEndpoints:
     @patch("main.PostgresManager")
     @patch("main.LiteLLMChatMemory")
     @patch.dict(os.environ, {"OPENAI_API_KEY": "test-api-key"})
-    def test_control_endpoint_unknown_command(self, mock_chatmemory, mock_postgres_manager):
+    def test_control_endpoint_unknown_command(
+        self, mock_chatmemory, mock_postgres_manager
+    ):
         """制御エンドポイントの不明なコマンドテスト"""
         # モックの設定
         mock_pg_instance = Mock()
@@ -382,6 +409,7 @@ class TestAppEndpoints:
         mock_cm_instance = Mock()
         mock_cm_instance.get_router.return_value = APIRouter()
         mock_chatmemory.return_value = mock_cm_instance
+
 
         app, _, _, _ = create_app()
         client = TestClient(app)

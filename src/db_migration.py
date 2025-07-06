@@ -46,9 +46,7 @@ class DatabaseMigration:
             bool: マイグレーションを実行した場合はTrue、スキップした場合はFalse
         """
         if not self.current_user_id:
-            logger.warning(
-                "current_user_idが設定されていません。マイグレーションをスキップします。"
-            )
+            logger.warning("current_user_idが設定されていません。マイグレーションをスキップします。")
             return False
 
         conn = None
@@ -66,15 +64,11 @@ class DatabaseMigration:
             has_reminder_table = await self._has_reminder_table(conn)
 
             if not has_reminder_table:
-                logger.info(
-                    "リマインダーテーブルが存在しません。user_idマイグレーションを実行します。"
-                )
+                logger.info("リマインダーテーブルが存在しません。user_idマイグレーションを実行します。")
                 await self._migrate_user_ids(conn)
                 return True
             else:
-                logger.info(
-                    "リマインダーテーブルが既に存在します。マイグレーションをスキップします。"
-                )
+                logger.info("リマインダーテーブルが既に存在します。マイグレーションをスキップします。")
                 return False
 
         except Exception as e:
@@ -123,11 +117,7 @@ class DatabaseMigration:
             for table_name in tables_to_update:
                 try:
                     # テーブル名の安全性チェック（想定されるテーブル名のみ許可）
-                    allowed_tables = [
-                        "conversation_history",
-                        "conversation_summaries",
-                        "user_knowledge",
-                    ]
+                    allowed_tables = ["conversation_history", "conversation_summaries", "user_knowledge"]
                     if table_name not in allowed_tables:
                         logger.warning(f"予期しないテーブル名: {table_name}。スキップします。")
                         continue
@@ -164,19 +154,17 @@ class DatabaseMigration:
                     )
 
                     if not column_exists:
-                        logger.info(
-                            f"テーブル {table_name} にuser_idカラムがありません。スキップします。"
-                        )
+                        logger.info(f"テーブル {table_name} にuser_idカラムがありません。スキップします。")
                         continue
 
                     # 更新前の件数を取得（NULLも含む）
-                    count_before = await conn.fetchval("SELECT COUNT(*) FROM " + table_name + ";")
-
+                    count_before = await conn.fetchval(
+                        "SELECT COUNT(*) FROM " + table_name + ";"
+                    )
+                    
                     # 更新前のユニークなuser_id数を取得（NULLは除く）
                     unique_users_before = await conn.fetchval(
-                        "SELECT COUNT(DISTINCT user_id) FROM "
-                        + table_name
-                        + " WHERE user_id IS NOT NULL;"
+                        "SELECT COUNT(DISTINCT user_id) FROM " + table_name + " WHERE user_id IS NOT NULL;"
                     )
 
                     # NULLも含めてuser_idを更新
