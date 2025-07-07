@@ -14,7 +14,7 @@ from psycopg2.extras import RealDictCursor
 logger = logging.getLogger(__name__)
 
 # 現在のアプリケーションバージョン
-CURRENT_VERSION = "3.1.1"
+CURRENT_VERSION = "3.2.0"
 
 
 def compare_versions(version1: str, version2: str) -> int:
@@ -156,9 +156,7 @@ class VersionManager:
         try:
             with self._get_connection() as conn:
                 with conn.cursor() as cursor:
-                    cursor.execute(
-                        "SELECT COUNT(*) FROM app_versions WHERE version = %s", (version,)
-                    )
+                    cursor.execute("SELECT COUNT(*) FROM app_versions WHERE version = %s", (version,))
                     result = cursor.fetchone()
                     count = result[0] if result else 0
                     return count > 0
@@ -214,9 +212,7 @@ class VersionManager:
             logger.error(f"バージョン履歴取得に失敗しました: {e}")
             return []
 
-    def initialize_version_management(
-        self, version: str | None = None, description: str | None = None
-    ):
+    def initialize_version_management(self, version: str | None = None, description: str | None = None):
         """
         バージョン管理の初期化処理
 
