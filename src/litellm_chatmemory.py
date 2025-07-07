@@ -28,10 +28,11 @@ class LiteLLMChatMemory(ChatMemory):
             **kwargs: ChatMemoryクラスの他のパラメータ
 
         """
-        # APIキーを保存
+        # APIキーとモデルを保存
         self.api_key = api_key or ""
         self.embedded_api_key = embedded_api_key or api_key or ""
         self.embedded_model = embedded_model
+        self.llm_model = llm_model
 
         # ChatMemoryの初期化（OpenAI APIキーとモデルを設定）
         super().__init__(
@@ -97,12 +98,15 @@ class LiteLLMChatMemory(ChatMemory):
             if isinstance(response, dict):
                 # 辞書型の場合
                 if "data" in response and len(response["data"]) > 0:
-                    embedding = response["data"][0]["embedding"]
+                    if "embedding" in response["data"][0]:
+                        embedding = response["data"][0]["embedding"]
+                    else:
+                        raise ValueError(f"Unexpected response format: {response}")
                 else:
                     raise ValueError(f"Unexpected response format: {response}")
             else:
                 # オブジェクト型の場合
-                if hasattr(response, "data") and len(response.data) > 0:
+                if hasattr(response, "data") and hasattr(response.data, "__len__") and len(response.data) > 0:
                     # response.data[0]がオブジェクトの場合
                     if hasattr(response.data[0], "embedding"):
                         embedding = response.data[0].embedding
