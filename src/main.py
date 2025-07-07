@@ -23,11 +23,7 @@ try:
     from .db_migration import run_migration
     from .litellm_chatmemory import LiteLLMChatMemory
     from .postgres_manager import PostgresManager, get_short_path_name
-    from .version_manager import (
-        VersionManager,
-        compare_versions,
-        initialize_version_management_async,
-    )
+    from .version_manager import VersionManager, compare_versions, initialize_version_management_async
 except ImportError:
     # 直接実行される場合
 
@@ -35,11 +31,7 @@ except ImportError:
     from db_migration import run_migration
     from litellm_chatmemory import LiteLLMChatMemory
     from postgres_manager import PostgresManager, get_short_path_name
-    from version_manager import (
-        VersionManager,
-        compare_versions,
-        initialize_version_management_async,
-    )
+    from version_manager import VersionManager, compare_versions, initialize_version_management_async
 
 # .envファイルから環境変数を読み込む
 load_dotenv()
@@ -61,12 +53,8 @@ log_file = log_dir / "cocoro_memory.log"
 try:
     short_log_file = get_short_path_name(str(log_file))
     handlers = [
-        RotatingFileHandler(
-            short_log_file, maxBytes=10 * 1024 * 1024, backupCount=5, encoding="utf-8"
-        ),
-        logging.StreamHandler(sys.stdout)
-        if not getattr(sys, "frozen", False) or sys.stdout
-        else logging.NullHandler(),
+        RotatingFileHandler(short_log_file, maxBytes=10 * 1024 * 1024, backupCount=5, encoding="utf-8"),
+        logging.StreamHandler(sys.stdout) if not getattr(sys, "frozen", False) or sys.stdout else logging.NullHandler(),
     ]
 except Exception as e:
     # ログファイルが作成できない場合は標準出力のみ
@@ -107,9 +95,7 @@ def create_app(config_dir=None):
         # 設定ファイルが不完全な場合は環境変数から読み込む
         api_key = os.getenv("OPENAI_API_KEY")
         if api_key is None:
-            raise ValueError(
-                "設定ファイルが見つからないか不完全で、OPENAI_API_KEY環境変数も設定されていません"
-            )
+            raise ValueError("設定ファイルが見つからないか不完全で、OPENAI_API_KEY環境変数も設定されていません")
         llm_api_key = api_key
         llm_model = "openai/gpt-4o-mini"
         embedded_api_key = api_key  # デフォルトは同じAPIキー
@@ -121,9 +107,7 @@ def create_app(config_dir=None):
         current_user_id = current_char.get("userId")  # 現在のキャラクターのuserIdを取得
         llm_api_key = current_char.get("apiKey")
         llm_model = current_char.get("llmModel", "openai/gpt-4o-mini")
-        embedded_api_key = current_char.get(
-            "embeddedApiKey", llm_api_key
-        )  # デフォルトはLLMのAPIキー
+        embedded_api_key = current_char.get("embeddedApiKey", llm_api_key)  # デフォルトはLLMのAPIキー
         embedded_model = current_char.get("embeddedModel", "openai/text-embedding-3-small")
         memory_port = config.get("cocoroMemoryPort", 55602)
         postgres_port = config.get("cocoroMemoryDBPort", 5432)  # PostgreSQLポート設定を追加
@@ -146,9 +130,7 @@ def create_app(config_dir=None):
                 logger.info("バージョン管理テーブルが存在しないため、マイグレーションを実行します")
                 should_migrate = True
             else:
-                logger.info(
-                    "バージョン管理テーブルが既に存在するため、マイグレーションをスキップします"
-                )
+                logger.info("バージョン管理テーブルが既に存在するため、マイグレーションをスキップします")
                 should_migrate = False
 
             if should_migrate:
@@ -222,7 +204,72 @@ def create_app(config_dir=None):
     )
 
     app = FastAPI()
+
+    # ChatMemoryの標準ルーターを含める（他のエンドポイントのため）
     app.include_router(cm.get_router())
+
+    # 高速化された検索エンドポイント
+    @app.post("/search")
+    async def search_optimized(request: dict):
+        """記憶検索エンドポイント（高速）
+
+        Args:
+            request (dict): リクエストボディ
+                - user_id: ユーザーID
+                - query: 検索クエリ
+                - top_k: 検索結果の最大数（デフォルト: 5）
+
+        Returns:
+            dict: 検索結果
+                - retrieved_data: 検索された生データ
+                - total_found: データが見つかったかどうか
+        """
+        user_id = request.get("user_id")
+        query = request.get("query")
+        top_k = request.get("top_k", 5)
+
+        if not user_id or not query:
+            return {"error": "user_id and query are required"}
+
+        try:
+            # ベクトル検索のみを実行（LLM処理なし）
+            query_embedding = await cm.embed(query)
+            vector_str = "[" + ",".join(map(str, query_embedding)) + "]"
+
+            with cm.get_db_cursor() as (cur, conn):
+                # summary検索
+                summaries = cm.search_summary(cur, user_id, vector_str, top_k)
+                summaries_text = "\n".join([f"Conversation summary ({s.created_at}): {s.summary}" for s in summaries]) if summaries else ""
+
+                # knowledge検索
+                knowledges = cm.search_knowledge(cur, user_id, vector_str, top_k)
+                knowledges_text = "\n".join([f"Knowledge about user ({k.created_at}): {k.knowledge}" for k in knowledges]) if knowledges else ""
+
+                # retrieved_dataの組み立て
+                retrieved_data = ""
+                if summaries_text or knowledges_text:
+                    if summaries_text:
+                        retrieved_data += f"====\n\n{summaries_text}\n\n"
+                    if knowledges_text:
+                        retrieved_data += f"====\n\n{knowledges_text}\n\n"
+                else:
+                    # summaryやknowledgeが見つからない場合はhistory検索も実行
+                    content_data = cm.search_content(conn, user_id, vector_str, top_k)
+                    content_retrieved = "====\n"
+                    for session_id, messages in content_data.items():
+                        if messages:
+                            content_retrieved += f"\n- Conversation log ({messages[0].created_at}):\n"
+                            for m in messages:
+                                content_retrieved += f"  - {m.role}: {m.content}\n"
+                    retrieved_data = content_retrieved
+
+                total_found = len(retrieved_data.strip()) > 0
+
+                return {"retrieved_data": retrieved_data, "total_found": total_found}
+
+        except Exception as e:
+            logger.error(f"検索エラー: {e}")
+            return {"error": f"Search failed: {str(e)}"}
 
     # シャットダウンイベントを作成
     shutdown_event = threading.Event()
@@ -252,20 +299,13 @@ def create_app(config_dir=None):
     @app.get("/health")
     async def health_check():
         """ヘルスチェックエンドポイント
-        
+
         Returns:
             dict: サービスの状態
         """
         from datetime import datetime
-        
-        return {
-            "status": "healthy",
-            "timestamp": datetime.now().isoformat(),
-            "services": {
-                "database": "running",
-                "chatmemory": "running"
-            }
-        }
+
+        return {"status": "healthy", "timestamp": datetime.now().isoformat(), "services": {"database": "running", "chatmemory": "running"}}
 
     return app, memory_port, pg_manager, shutdown_event
 
