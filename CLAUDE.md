@@ -4,6 +4,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Common Development Commands
 
+WSL上で動作している場合は必ずpowershell.exe経由で実行してください
+
 ### Virtual Environment Setup (PowerShell)
 ```powershell
 # Activate virtual environment
