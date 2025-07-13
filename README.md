@@ -24,7 +24,7 @@ CocoroMemory.exe C:\path\to\config
 
 必要に応じて、以下のスクリプトでデータベースを手動操作できます：
 
-- `Data`ディレクトリの削除: データベースの削除
+- `Memory`ディレクトリの削除: データベースの削除
 - `Scripts\initdb.bat`: データベースの初期化
 - `Scripts\start_postgres.bat`: PostgreSQL サーバーの手動起動
 - `Scripts\stop_postgres.bat`: PostgreSQL サーバーの手動停止

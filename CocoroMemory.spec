@@ -11,7 +11,7 @@ root_dir = os.path.dirname(os.path.abspath(SPEC))
 
 # 埋め込みPostgreSQLディレクトリ
 pgsql_dir = os.path.join(root_dir, 'pgsql')
-data_dir = os.path.join(root_dir, 'Data')
+data_dir = os.path.join(root_dir, 'Memory')  # PostgreSQLデータディレクトリ
 scripts_dir = os.path.join(root_dir, 'Scripts')
 logs_dir = os.path.join(root_dir, 'Logs')
 

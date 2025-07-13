@@ -335,7 +335,10 @@ class PostgresManager:
 
         # PostgreSQLの各種ディレクトリとコマンドのパスを設定
         self.pgsql_dir = os.path.join(self.base_dir, "pgsql")
-        self.data_dir = os.path.join(self.base_dir, "Data")
+        
+        # UserDataフォルダを探してMemoryディレクトリを設定
+        userdata_dir = self._find_userdata_directory()
+        self.data_dir = os.path.join(userdata_dir, "Memory")
         self.log_dir = os.path.join(self.base_dir, "Logs")
 
         # bin_dir の探索: _internal/pgsql/bin 優先
@@ -365,6 +368,31 @@ class PostgresManager:
         self.server_manager = PostgresServerManager(
             self.pg_ctl_exe, self.psql_exe, self.data_dir, self.log_file, self.base_dir
         )
+
+    def _find_userdata_directory(self):
+        """UserDataディレクトリを探す"""
+        # 現在のベースディレクトリにUserDataがあるかチェック
+        userdata_candidate = os.path.join(self.base_dir, "UserData")
+        if os.path.exists(userdata_candidate):
+            return userdata_candidate
+        
+        # 親ディレクトリにUserDataがあるかチェック
+        parent_dir = os.path.dirname(self.base_dir)
+        userdata_candidate = os.path.join(parent_dir, "UserData")
+        if os.path.exists(userdata_candidate):
+            return userdata_candidate
+        
+        # 親の親ディレクトリにUserDataがあるかチェック
+        grandparent_dir = os.path.dirname(parent_dir)
+        userdata_candidate = os.path.join(grandparent_dir, "UserData")
+        if os.path.exists(userdata_candidate):
+            return userdata_candidate
+        
+        # UserDataフォルダが見つからない場合は、ベースディレクトリにUserDataを作成
+        userdata_candidate = os.path.join(self.base_dir, "UserData")
+        os.makedirs(userdata_candidate, exist_ok=True)
+        logger.info(f"UserDataディレクトリを作成しました: {userdata_candidate}")
+        return userdata_candidate
 
     def initialize_db(self):
         """データベースを初期化"""

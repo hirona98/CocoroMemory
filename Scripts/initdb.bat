@@ -2,7 +2,7 @@
 setlocal
 
 set PGROOT=%~dp0..\pgsql
-set DATADIR=%~dp0..\Data
+set DATADIR=%~dp0..\Memory
 set LOGDIR=%~dp0..\Logs
 set PWFILE=%~dp0pg_pw.txt
 

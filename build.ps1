@@ -17,15 +17,6 @@ if (-not (Test-Path $spec)) {
 # Run PyInstaller packaging (skip confirmation prompts with -y)
 pyinstaller --clean -y $spec
 
-# Copy data directory initialization script
-if (-not (Test-Path "dist\CocoroMemory\Data")) {
-    New-Item -Path "dist\CocoroMemory\Data" -ItemType Directory
-}
-
-if (-not (Test-Path "dist\CocoroMemory\Logs")) {
-    New-Item -Path "dist\CocoroMemory\Logs" -ItemType Directory
-}
-
 # Deactivate virtual environment
 deactivate
 
