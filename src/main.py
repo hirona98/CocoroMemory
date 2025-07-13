@@ -208,9 +208,9 @@ def create_app(config_dir=None):
     # ChatMemoryの標準ルーターを含める（他のエンドポイントのため）
     app.include_router(cm.get_router())
 
-    # 高速化された検索エンドポイント
-    @app.post("/search")
-    async def search_optimized(request: dict):
+    # 直接検索エンドポイント（LLM処理なし）
+    @app.post("/search_direct")
+    async def search_direct(request: dict):
         """記憶検索エンドポイント（高速）
 
         Args:
