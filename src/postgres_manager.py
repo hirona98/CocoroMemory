@@ -391,7 +391,7 @@ class PostgresManager:
         # UserDataフォルダが見つからない場合は、ベースディレクトリにUserDataを作成
         userdata_candidate = os.path.join(self.base_dir, "UserData")
         os.makedirs(userdata_candidate, exist_ok=True)
-        logger.info(f"UserDataディレクトリを作成しました: {userdata_candidate}")
+        print(f"UserDataディレクトリを作成しました: {userdata_candidate}")
         return userdata_candidate
 
     def initialize_db(self):

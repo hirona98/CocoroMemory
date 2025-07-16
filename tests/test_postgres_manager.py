@@ -257,7 +257,7 @@ class TestPostgresManager:
         manager = PostgresManager(base_dir=self.temp_dir)
 
         assert manager.base_dir == self.temp_dir
-        assert manager.data_dir == os.path.join(self.temp_dir, "Data")
+        assert manager.data_dir == os.path.join(self.temp_dir, "UserData", "Memory")
         assert manager.log_dir == os.path.join(self.temp_dir, "Logs")
 
     def test_init_with_port(self):
