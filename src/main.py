@@ -69,6 +69,27 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def _utc_to_local(utc_datetime):
+    """UTCのdatetimeオブジェクトをローカル時間の文字列に変換"""
+    if utc_datetime is None:
+        return "Unknown"
+    
+    # UTCタイムゾーン情報を追加
+    if utc_datetime.tzinfo is None:
+        from datetime import timezone
+        utc_datetime = utc_datetime.replace(tzinfo=timezone.utc)
+    
+    # PCのローカル時間に変換
+    import time
+    local_datetime = utc_datetime.astimezone()
+    
+    # タイムゾーン名を取得
+    tz_name = time.tzname[time.daylight] if time.daylight else time.tzname[0]
+    
+    # ローカル時間として表示
+    return local_datetime.strftime(f"%Y-%m-%d %H:%M:%S {tz_name}")
+
+
 def create_app(config_dir=None):
     """CocoroMemory アプリケーションを作成する関数
 
@@ -239,11 +260,11 @@ def create_app(config_dir=None):
             with cm.get_db_cursor() as (cur, conn):
                 # summary検索
                 summaries = cm.search_summary(cur, user_id, vector_str, top_k)
-                summaries_text = "\n".join([f"Conversation summary ({s.created_at}): {s.summary}" for s in summaries]) if summaries else ""
+                summaries_text = "\n".join([f"Conversation summary ({_utc_to_local(s.created_at)}): {s.summary}" for s in summaries]) if summaries else ""
 
                 # knowledge検索
                 knowledges = cm.search_knowledge(cur, user_id, vector_str, top_k)
-                knowledges_text = "\n".join([f"Knowledge about user ({k.created_at}): {k.knowledge}" for k in knowledges]) if knowledges else ""
+                knowledges_text = "\n".join([f"Knowledge about user ({_utc_to_local(k.created_at)}): {k.knowledge}" for k in knowledges]) if knowledges else ""
 
                 # retrieved_dataの組み立て
                 retrieved_data = ""
@@ -258,7 +279,7 @@ def create_app(config_dir=None):
                     content_retrieved = "====\n"
                     for session_id, messages in content_data.items():
                         if messages:
-                            content_retrieved += f"\n- Conversation log ({messages[0].created_at}):\n"
+                            content_retrieved += f"\n- Conversation log ({_utc_to_local(messages[0].created_at)}):\n"
                             for m in messages:
                                 content_retrieved += f"  - {m.role}: {m.content}\n"
                     retrieved_data = content_retrieved
@@ -303,9 +324,9 @@ def create_app(config_dir=None):
         Returns:
             dict: サービスの状態
         """
-        from datetime import datetime
+        from datetime import datetime, timezone
 
-        return {"status": "healthy", "timestamp": datetime.now().isoformat(), "services": {"database": "running", "chatmemory": "running"}}
+        return {"status": "healthy", "timestamp": datetime.now(timezone.utc).isoformat(), "services": {"database": "running", "chatmemory": "running"}}
 
     return app, memory_port, pg_manager, shutdown_event
 
