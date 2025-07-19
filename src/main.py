@@ -93,6 +93,14 @@ try:
     # chatmemoryのログを表示したい場合
     logging.getLogger("chatmemory").setLevel(logging.INFO)
     
+    # httpxの /api/logs リクエストを非表示にするためのフィルター
+    class ApiLogsFilter(logging.Filter):
+        def filter(self, record):
+            return not ("/api/logs" in record.getMessage())
+    
+    # httpxロガーにフィルターを追加
+    logging.getLogger("httpx").addFilter(ApiLogsFilter())
+    
 except ImportError as e:
     # CocoroDockログハンドラーのインポートに失敗（サイレント）
     dock_log_handler = None
