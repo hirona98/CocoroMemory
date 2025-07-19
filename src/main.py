@@ -79,6 +79,7 @@ try:
     dock_url = f"http://127.0.0.1:{dock_port}"
     dock_log_handler = CocoroDockLogHandler(dock_url=dock_url, component_name="CocoroMemory")
     dock_log_handler.setFormatter(logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s"))
+    dock_log_handler.setLevel(logging.DEBUG)  # すべてのレベルのログを受け取る
     
     # ルートロガーに追加して、すべてのライブラリのログを取得
     root_logger = logging.getLogger()
